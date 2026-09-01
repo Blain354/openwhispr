@@ -51,6 +51,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const startLockRef = useRef(false);
   const stopRequestedDuringStartRef = useRef(false);
   const pushForceStoppedRef = useRef(false);
+  const cancelRequestedDuringStartRef = useRef(false);
   const stopLockRef = useRef(false);
   const preparationGenerationRef = useRef(0);
   const wasRecordingRef = useRef(false);
@@ -121,6 +122,7 @@ export const useAudioRecording = (toast, options = {}) => {
       startLockRef.current = true;
       stopRequestedDuringStartRef.current = false;
       pushForceStoppedRef.current = false;
+      cancelRequestedDuringStartRef.current = false;
       let recordingStarted = false;
       try {
         if (!audioManagerRef.current) return false;
@@ -221,6 +223,24 @@ export const useAudioRecording = (toast, options = {}) => {
         recordingStarted = didStart;
         if (didStart) dismissDictationError?.();
 
+        // Same shape as the stop below, and checked first because a cancel
+        // discards audio a stop would keep: every cancel path (the Fn-combo
+        // interrupt on a just-latched hands-free session, a force-stopped
+        // push, the deferred quick-release cancel) fires while isRecording is
+        // still false on a cold mic, so it was dropped and the device opened
+        // seconds later into a recording nothing could stop.
+        if (didStart && cancelRequestedDuringStartRef.current) {
+          recordingStarted = false;
+          window.electronAPI?.unregisterCancelHotkey?.();
+          const cancelState = audioManagerRef.current.getState();
+          if (cancelState.isStreaming || cancelState.isStreamingStartInProgress) {
+            await audioManagerRef.current.cancelStreamingRecording();
+          } else {
+            audioManagerRef.current.cancelRecording();
+          }
+          return false;
+        }
+
         // A stop that landed while the start was still awaiting the mic open was
         // dropped (isRecording was still false), leaving a runaway recording
         // until the next hotkey press. Honor it now that we started.
@@ -255,6 +275,7 @@ export const useAudioRecording = (toast, options = {}) => {
         // no state change will ever arrive.
         if (stopRequestedDuringStartRef.current && !recordingStarted) setIsStopping(false);
         stopRequestedDuringStartRef.current = false;
+        cancelRequestedDuringStartRef.current = false;
         if (!recordingStarted) {
           setIsPreparing(false);
           setIsAssistantVoice(false);
@@ -810,6 +831,9 @@ export const useAudioRecording = (toast, options = {}) => {
 
     const disposeCancelPreparation = window.electronAPI.onCancelDictationPreparation?.(() => {
       preparationGenerationRef.current += 1;
+      // Cancelling the prepared capture cannot reach a start that is already
+      // awaiting the device; performStartRecording unwinds it when it lands.
+      if (startLockRef.current) cancelRequestedDuringStartRef.current = true;
       setIsPreparing(false);
       audioManagerRef.current?.cancelPreparedMicCapture?.();
       if (reportedLifecycleRef.current?.startsWith("preparing:")) reportLifecycle("idle");
@@ -858,6 +882,10 @@ export const useAudioRecording = (toast, options = {}) => {
   const cancelRecording = useCallback(async () => {
     if (audioManagerRef.current) {
       preparationGenerationRef.current += 1;
+      // The panel's cancel control reaches a start still awaiting the mic the
+      // same way the hotkey interrupt does — through the flag, not through
+      // the state below, which the in-flight start does not re-read.
+      if (startLockRef.current) cancelRequestedDuringStartRef.current = true;
       setIsPreparing(false);
       setIsStopping(false);
       audioManagerRef.current.cancelPreparedMicCapture?.();
