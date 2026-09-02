@@ -3730,6 +3730,11 @@
       "askAssistant": "Demander à l'assistant",
       "busyRecording": "Terminez d'abord l'enregistrement en cours",
       "startMeetingRecording": "Démarrer l’enregistrement de la réunion"
+    },
+    "handsFreeTip": {
+      "badge": "Astuce",
+      "title": "Passez en mode mains libres",
+      "description": "Appuyez deux fois sur {{hotkey}} pour démarrer le mode mains libres."
     }
   },
   "dictationAgent": {

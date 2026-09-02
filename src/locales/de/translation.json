@@ -3730,6 +3730,11 @@
       "askAssistant": "Assistent fragen",
       "busyRecording": "Beende zuerst die laufende Aufnahme",
       "startMeetingRecording": "Meeting-Aufnahme starten"
+    },
+    "handsFreeTip": {
+      "badge": "Tipp",
+      "title": "Zum Freihandmodus wechseln",
+      "description": "Tippe {{hotkey}} zweimal, um den Freihandmodus zu starten."
     }
   },
   "dictationAgent": {

@@ -1183,6 +1183,15 @@ declare global {
       onDictationForceStopped?: (
         callback: (payload?: { reason?: "timeout" | "reset" | "manual" }) => void
       ) => () => void;
+      onHoldDictationEnded?: (
+        callback: (report: {
+          inputKind: "dictation" | "assistant" | "translation";
+          heldMs: number;
+        }) => void
+      ) => () => void;
+      onHandsFreeLatched?: (
+        callback: (report: { inputKind: "dictation" | "assistant" | "translation" }) => void
+      ) => () => void;
       micWarmHoldChanged?: (active: boolean) => void;
       dictationLifecycleStateChanged: (
         state: "idle" | "preparing" | "recording" | "processing",

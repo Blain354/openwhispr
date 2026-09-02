@@ -3561,6 +3561,11 @@
       "askAssistant": "詢問助理",
       "busyRecording": "請先結束目前的錄音",
       "startMeetingRecording": "開始會議錄音"
+    },
+    "handsFreeTip": {
+      "badge": "提示",
+      "title": "切換到免持模式",
+      "description": "連按兩次 {{hotkey}} 即可開始免持模式。"
     }
   },
   "dictationAgent": {

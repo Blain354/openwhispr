@@ -3561,6 +3561,11 @@
       "askAssistant": "Chiedi all'assistente",
       "busyRecording": "Prima termina la registrazione in corso",
       "startMeetingRecording": "Avvia registrazione meeting"
+    },
+    "handsFreeTip": {
+      "badge": "Suggerimento",
+      "title": "Passa alla modalità a mani libere",
+      "description": "Premi due volte {{hotkey}} per avviare la modalità a mani libere."
     }
   },
   "dictationAgent": {

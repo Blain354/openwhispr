@@ -3561,6 +3561,11 @@
       "askAssistant": "アシスタントに質問",
       "busyRecording": "先に録音を終了してください",
       "startMeetingRecording": "ミーティングの録音を開始"
+    },
+    "handsFreeTip": {
+      "badge": "ヒント",
+      "title": "ハンズフリーモードに切り替え",
+      "description": "{{hotkey}} を2回押すとハンズフリーモードが始まります。"
     }
   },
   "dictationAgent": {

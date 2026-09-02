@@ -3730,6 +3730,11 @@
       "askAssistant": "Ask assistant",
       "busyRecording": "Finish the current dictation first",
       "startMeetingRecording": "Start meeting recording"
+    },
+    "handsFreeTip": {
+      "badge": "Tip",
+      "title": "Switch to hands-free mode",
+      "description": "Double tap {{hotkey}} to start hands-free mode."
     }
   },
   "dictationAgent": {

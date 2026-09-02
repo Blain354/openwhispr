@@ -3607,6 +3607,11 @@
       "askAssistant": "Спросить помощника",
       "busyRecording": "Сначала завершите текущую запись",
       "startMeetingRecording": "Начать запись встречи"
+    },
+    "handsFreeTip": {
+      "badge": "Совет",
+      "title": "Перейдите в режим без рук",
+      "description": "Дважды нажмите {{hotkey}}, чтобы запустить режим без рук."
     }
   },
   "dictationAgent": {

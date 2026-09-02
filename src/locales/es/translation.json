@@ -3614,6 +3614,11 @@
       "askAssistant": "Preguntar al asistente",
       "busyRecording": "Primero termina la grabación actual",
       "startMeetingRecording": "Iniciar grabación de reunión"
+    },
+    "handsFreeTip": {
+      "badge": "Consejo",
+      "title": "Cambia al modo manos libres",
+      "description": "Pulsa {{hotkey}} dos veces para iniciar el modo manos libres."
     }
   },
   "dictationAgent": {
