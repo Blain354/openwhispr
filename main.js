@@ -1516,12 +1516,14 @@ async function startApp() {
             // must not cancel preparation or hide the thinking pill.
             debugLogger?.debug("[Globe] Release without a registered press — ignored");
           } else {
+            const downTime = globeKeyDownTime;
             globeKeyDownTime = 0;
             if (globeKeyIsRecording) {
               globeKeyIsRecording = false;
               globeLastStopTime = Date.now();
               debugLogger?.debug("[Globe] Stopping dictation (push release)");
               windowManager.sendStopDictation();
+              windowManager.notifyHoldDictationEnded("dictation", downTime);
             } else {
               // Quick tap: the gesture keeps the preparation warm through the
               // double-press window before cancelling.
@@ -1646,12 +1648,14 @@ async function startApp() {
             // must not cancel preparation or hide the thinking pill.
             debugLogger?.debug("[RightMod] Release without a registered press — ignored");
           } else {
+            const downTime = rightModDownTime;
             rightModActiveKey = null;
             rightModDownTime = 0;
             if (rightModIsRecording) {
               rightModIsRecording = false;
               rightModLastStopTime = Date.now();
               windowManager.sendStopDictation();
+              windowManager.notifyHoldDictationEnded("dictation", downTime);
             } else {
               windowManager.handlePushGestureQuickRelease("dictation");
             }
