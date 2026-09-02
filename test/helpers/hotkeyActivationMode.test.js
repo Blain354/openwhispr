@@ -39,22 +39,6 @@ test("native push-to-talk support is hotkey-aware", () => {
   });
 });
 
-// globalShortcut never reports a release and re-fires on autorepeat, so a lone
-// regular key held down would toggle dictation on and off. Only keys a native
-// listener watches, or chords whose modifier release ends the hold, can be held.
-test("macOS can hold only keys it can see released", () => {
-  withPlatform("darwin", () => {
-    const manager = new HotkeyManager();
-
-    assert.equal(manager.supportsPushToTalk("F8"), false);
-    assert.equal(manager.supportsPushToTalk("PageDown"), false);
-    assert.equal(manager.supportsPushToTalk("GLOBE"), true);
-    assert.equal(manager.supportsPushToTalk("RightOption"), true);
-    assert.equal(manager.supportsPushToTalk("Control+R"), true);
-    assert.equal(manager.supportsPushToTalk("MouseButton4"), true);
-  });
-});
-
 test("non-dictation slots Hold on KDE and GNOME (portal); only Hyprland refuses", () => {
   const manager = new HotkeyManager();
   const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
@@ -165,6 +149,9 @@ test("updateHotkey converges a Hold dictation mode to Tap when the new hotkey ca
   Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
   manager.saveHotkeyToRenderer = async () => true;
   manager.notifyActiveHotkey = () => undefined;
+  // The capability verdict is the backend's; here only F13 cannot Hold (the
+  // shape of a modifier-only combo on a DE-native Linux backend).
+  manager.supportsPushToTalk = (hotkey) => hotkey !== "F13";
   try {
     manager.activationMode = "push";
     const converged = await manager.updateHotkey("F13", () => undefined);
@@ -190,22 +177,76 @@ test("updateHotkey converges a Hold dictation mode to Tap when the new hotkey ca
   }
 });
 
-test("macOS supports Hold only for hotkeys with release detection", () => {
+test("macOS supports Hold for every hotkey kind, plain keys through the listener's key watch", () => {
   const manager = new HotkeyManager();
   const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
   Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
   try {
-    assert.equal(manager.supportsPushToTalk("Command+Period"), true);
-    assert.equal(manager.supportsPushToTalk("GLOBE"), true);
-    assert.equal(manager.supportsPushToTalk("RightOption"), true);
-    assert.equal(manager.supportsPushToTalk("MouseButton4"), true);
-    // A plain key has no key-up source on macOS: Hold would silently act as
-    // Tap, so it must be reported unsupported.
-    assert.equal(manager.supportsPushToTalk("F13"), false);
-    assert.equal(typeof manager.getPushToTalkUnavailableReason("F13"), "string");
+    for (const hotkey of ["Command+Period", "GLOBE", "RightOption", "MouseButton4", "F13", "F9"]) {
+      assert.equal(manager.supportsPushToTalk(hotkey), true, `${hotkey} should Hold`);
+    }
+    assert.equal(manager.supportsPushToTalk("F13", "voiceAgent"), true);
     // No hotkey to judge yet (early startup): stay permissive.
     assert.equal(manager.supportsPushToTalk(null), true);
   } finally {
+    Object.defineProperty(process, "platform", originalPlatform);
+  }
+});
+
+test("on macOS a plain key on Hold is owned by the native listener, never by globalShortcut", async () => {
+  const manager = new HotkeyManager();
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+  Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
+  const { globalShortcut } = require("electron");
+  const originalRegister = globalShortcut.register;
+  const originalUnregister = globalShortcut.unregister;
+  const registered = [];
+  const unregistered = [];
+  globalShortcut.register = (accelerator) => {
+    registered.push(accelerator);
+    return true;
+  };
+  globalShortcut.unregister = (accelerator) => {
+    unregistered.push(accelerator);
+  };
+  try {
+    manager.activationMode = "push";
+    const held = manager.setupShortcuts("F13", () => undefined, "dictation");
+    assert.equal(held.success, true);
+    assert.deepEqual(manager.slots.get("dictation").accelerators, [null]);
+    assert.deepEqual(registered, []);
+    assert.equal(manager.isMacListenerOwnedKey("F13", "dictation"), true);
+
+    // Combos keep the Carbon hot key (modifier-up is their release source).
+    const combo = manager.setupShortcuts("Command+Period", () => undefined, "dictation");
+    assert.equal(combo.success, true);
+    assert.deepEqual(registered, ["Command+Period"]);
+
+    // Flipping to Tap moves a plain key back to globalShortcut, and Hold takes
+    // it away again — with the previous accelerator released each time.
+    manager.setupShortcuts("F13", () => undefined, "dictation");
+    registered.length = 0;
+    assert.equal(await manager.setActivationMode("tap"), true);
+    assert.deepEqual(manager.slots.get("dictation").accelerators, ["F13"]);
+    assert.deepEqual(registered, ["F13"]);
+    assert.equal(manager.isMacListenerOwnedKey("F13", "dictation"), false);
+
+    unregistered.length = 0;
+    assert.equal(await manager.setActivationMode("push"), true);
+    assert.deepEqual(manager.slots.get("dictation").accelerators, [null]);
+    assert.ok(unregistered.includes("F13"));
+
+    // The per-slot modes re-register the same way.
+    const slot = manager._ensureSlot("voiceAgent");
+    manager.setupShortcuts("F14", () => undefined, "voiceAgent");
+    assert.deepEqual(slot.accelerators, ["F14"]);
+    assert.equal(await manager.setSlotActivationMode("voiceAgent", "push"), true);
+    assert.deepEqual(slot.accelerators, [null]);
+    assert.equal(await manager.setSlotActivationMode("voiceAgent", "tap"), true);
+    assert.deepEqual(slot.accelerators, ["F14"]);
+  } finally {
+    globalShortcut.register = originalRegister;
+    globalShortcut.unregister = originalUnregister;
     Object.defineProperty(process, "platform", originalPlatform);
   }
 });
