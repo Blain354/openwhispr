@@ -3,11 +3,10 @@ const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
-const os = require("os");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const { killProcess } = require("../utils/process");
-const { isPortAvailable } = require("../utils/serverUtils");
+const { isPortAvailable, getAvailableParallelism } = require("../utils/serverUtils");
 const { getSafeTempDir } = require("./safeTempDir");
 const { convertToWav, isPcm16Mono16kWav } = require("./ffmpegUtils");
 const { createAbortError } = require("./abortError");
@@ -56,17 +55,6 @@ function parsePositiveInteger(value) {
   if (!/^\d+$/.test(normalized)) return null;
   const parsed = Number(normalized);
   return parsed > 0 ? parsed : null;
-}
-
-function getAvailableParallelism() {
-  try {
-    if (typeof os.availableParallelism === "function") {
-      return os.availableParallelism();
-    }
-  } catch {}
-
-  const cpus = os.cpus();
-  return Array.isArray(cpus) && cpus.length > 0 ? cpus.length : DEFAULT_WHISPER_THREADS;
 }
 
 function createThreadResolution(threads, source, availableParallelism) {

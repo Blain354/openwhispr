@@ -32,6 +32,25 @@ const COHERE_MAX_SEGMENT_SECONDS = 30;
 const ONLINE_MAX_SEGMENT_SECONDS = 600;
 const SILENCE_RMS_THRESHOLD = 0.001;
 
+// Runs fn over items with at most `limit` in flight; results keep item order.
+// Once one item rejects, no further items are started.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  let failed = false;
+  const worker = async () => {
+    while (!failed && next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index).catch((error) => {
+        failed = true;
+        throw error;
+      });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 class ParakeetServerManager {
   constructor() {
     this.wsServer = new ParakeetWsServer();
@@ -162,42 +181,51 @@ class ParakeetServerManager {
         segmentCount: Math.ceil(samples.length / maxSegmentBytes),
       });
 
-      const texts = [];
-      let totalElapsed = 0;
-      let truncated = false;
-
+      const segments = [];
       for (let offset = 0; offset < samples.length; offset += maxSegmentBytes) {
-        throwIfAborted();
-        const end = Math.min(offset + maxSegmentBytes, samples.length);
-        const segment = samples.subarray(offset, end);
-        let result = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
-        totalElapsed += result.elapsed || 0;
-        if (!result.text && computeFloat32RMS(segment) >= SILENCE_RMS_THRESHOLD) {
-          throwIfAborted();
-          // An empty decode of audible audio silently amputates the transcript
-          // (#1435: dictation openings dropped); retry once before conceding.
-          debugLogger.warn("Parakeet segment returned empty text, retrying", {
-            segmentIndex: offset / maxSegmentBytes,
-            segmentDuration: segment.length / BYTES_PER_SAMPLE / SAMPLE_RATE,
-          });
-          result = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
-          totalElapsed += result.elapsed || 0;
-          if (!result.text) {
-            truncated = true;
-            debugLogger.warn("Parakeet segment still empty after retry; transcript truncated", {
-              segmentIndex: offset / maxSegmentBytes,
-            });
-          }
-        }
-        // Latched after the retry so a discarded attempt's truncation dies with it.
-        if (result.truncated) truncated = true;
-        if (result.text) texts.push(result.text);
+        segments.push(samples.subarray(offset, offset + maxSegmentBytes));
       }
 
-      const text = texts.join(" ");
-      return truncated
-        ? { text, elapsed: totalElapsed, truncated }
-        : { text, elapsed: totalElapsed };
+      const decodeSegment = async (segment, segmentIndex) => {
+        throwIfAborted();
+        const first = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
+        if (first.text || computeFloat32RMS(segment) < SILENCE_RMS_THRESHOLD) return first;
+        throwIfAborted();
+        // An empty decode of audible audio silently amputates the transcript
+        // (#1435: dictation openings dropped); retry once before conceding.
+        debugLogger.warn("Parakeet segment returned empty text, retrying", {
+          segmentIndex,
+          segmentDuration: segment.length / BYTES_PER_SAMPLE / SAMPLE_RATE,
+        });
+        const retry = await this.wsServer.transcribe(segment, SAMPLE_RATE, { signal });
+        if (!retry.text) {
+          debugLogger.warn("Parakeet segment still empty after retry; transcript truncated", {
+            segmentIndex,
+          });
+        }
+        // Only the retry's truncation counts; the discarded attempt's dies with it.
+        return {
+          ...retry,
+          elapsed: (first.elapsed || 0) + (retry.elapsed || 0),
+          truncated: !!retry.truncated || !retry.text,
+        };
+      };
+
+      // Segments are independent, so a minute of dictation decodes on the
+      // server's work threads side by side instead of in four serial passes.
+      const results = await mapWithConcurrency(
+        segments,
+        this.wsServer.maxConcurrentDecodes,
+        decodeSegment
+      );
+      const text = results
+        .map((result) => result.text)
+        .filter(Boolean)
+        .join(" ");
+      const elapsed = results.reduce((sum, result) => sum + (result.elapsed || 0), 0);
+      return results.some((result) => result.truncated)
+        ? { text, elapsed, truncated: true }
+        : { text, elapsed };
     } finally {
       this._cleanupFiles(filesToCleanup);
     }
