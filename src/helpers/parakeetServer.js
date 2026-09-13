@@ -6,6 +6,7 @@ const {
   getFFmpegPath,
   isWavFormat,
   parseWavFormat,
+  isPcm16Mono16kWav,
   convertToWav,
   wavToFloat32Samples,
   computeFloat32RMS,
@@ -62,17 +63,9 @@ class ParakeetServerManager {
   }
 
   async _ensureWav(audioBuffer) {
+    if (isPcm16Mono16kWav(audioBuffer)) return { wavBuffer: audioBuffer, filesToCleanup: [] };
     if (isWavFormat(audioBuffer)) {
-      const format = parseWavFormat(audioBuffer);
-      if (
-        format?.audioFormat === 1 &&
-        format?.bitsPerSample === 16 &&
-        format?.sampleRate === SAMPLE_RATE &&
-        format?.channels === 1
-      ) {
-        return { wavBuffer: audioBuffer, filesToCleanup: [] };
-      }
-      debugLogger.debug("WAV input needs normalization", { format });
+      debugLogger.debug("WAV input needs normalization", { format: parseWavFormat(audioBuffer) });
     }
 
     const ffmpegPath = getFFmpegPath();

@@ -209,6 +209,17 @@ function parseWavFormat(wavBuffer) {
   return null;
 }
 
+// Local engines take 16 kHz mono PCM16 WAV as-is; anything else goes through FFmpeg.
+function isPcm16Mono16kWav(buffer) {
+  const format = parseWavFormat(buffer);
+  return (
+    format?.audioFormat === 1 &&
+    format?.channels === 1 &&
+    format?.sampleRate === 16000 &&
+    format?.bitsPerSample === 16
+  );
+}
+
 function wavToFloat32Samples(wavBuffer) {
   if (!isWavFormat(wavBuffer)) {
     throw new Error("Buffer is not a valid WAV file");
@@ -458,6 +469,7 @@ module.exports = {
   getFFmpegPath,
   isWavFormat,
   parseWavFormat,
+  isPcm16Mono16kWav,
   convertToWav,
   splitAudioFile,
   parseFfmpegDuration,

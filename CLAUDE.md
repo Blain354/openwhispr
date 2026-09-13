@@ -308,6 +308,8 @@ FFmpeg is bundled with the app and doesn't require system installation:
 7. whisper.cpp processes file → Result sent back
 8. Temporary file deleted
 
+For offline local engines (whisper.cpp, Parakeet/Orukeet, Cohere) the renderer also keeps a 16 kHz mono PCM copy of the same stream from the moment the mic opens (`pcmTap.js`, pre-roll included, capped at 4 minutes) and sends that WAV instead of the WebM, so no FFmpeg decode runs after stop; the WebM still goes to history and remains the fallback for cloud providers and long recordings.
+
 ### 3. Local Whisper Models (GGML format)
 
 Models stored in `~/.cache/openwhispr/whisper-models/`:
