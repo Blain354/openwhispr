@@ -3413,6 +3413,7 @@
     },
     "actions": {
       "done": "Fertig",
+      "chunkProgress": "Teil {{step}} von {{total}}",
       "manage": "Aktionen verwalten...",
       "manageTitle": "Benutzerdefinierte Aktionen",
       "addAction": "Neue Aktion",

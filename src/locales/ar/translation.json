@@ -1760,6 +1760,7 @@
     },
     "actions": {
       "done": "تم",
+      "chunkProgress": "الجزء {{step}} من {{total}}",
       "manage": "إدارة الإجراءات...",
       "manageTitle": "إجراءات مخصصة",
       "addAction": "إجراء جديد",
