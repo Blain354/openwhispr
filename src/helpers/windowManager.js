@@ -870,9 +870,18 @@ class WindowManager {
 
     if (wasRecording) {
       this.sendStopDictation();
-      this.notifyHoldDictationEnded(inputKind, downTime);
-    } else {
+      // Only a real release is a hold the user chose to end; the tip must not
+      // be offered off a safety ceiling or a settings reset.
+      if (reason === "release") this.notifyHoldDictationEnded(inputKind, downTime);
+    } else if (reason === "release") {
       this.handlePushGestureQuickRelease(inputKind);
+    } else {
+      // Nothing is coming back from a forced stop, so there is no double-press
+      // window to keep the preparation warm for.
+      this.sendCancelDictationPreparation();
+      if (!this._isDictatingToggle) {
+        this.hideDictationPanel();
+      }
     }
   }
 
