@@ -89,3 +89,49 @@ test("no Assistant target and a lost target both copy the completed response", a
     assert.deepEqual(writes, [RESPONSE], delivery.mode);
   }
 });
+
+const MARKDOWN_RESPONSE = "**Bold** start.\n\n* item one\n* item two";
+const PLAIN_RESPONSE = "Bold start.\n\n- item one\n- item two";
+
+test("a plain-text caret target receives the response stripped of markdown", async () => {
+  const { deliverAssistantResponse } = await deliveryModule;
+  const { dependencies, pastes, writes } = createDeliveryHarness(true);
+
+  assert.deepEqual(
+    await deliverAssistantResponse(PASTE_DELIVERY, MARKDOWN_RESPONSE, dependencies),
+    { pasted: true, copied: false }
+  );
+  assert.equal(pastes[0].text, PLAIN_RESPONSE);
+  assert.deepEqual(writes, []);
+});
+
+test("the clipboard fallback of a refused plain-text paste carries the same stripped text", async () => {
+  const { deliverAssistantResponse } = await deliveryModule;
+  const { dependencies, writes } = createDeliveryHarness(false);
+
+  assert.deepEqual(
+    await deliverAssistantResponse(PASTE_DELIVERY, MARKDOWN_RESPONSE, dependencies),
+    { pasted: false, copied: true }
+  );
+  assert.deepEqual(writes, [PLAIN_RESPONSE]);
+});
+
+test("a markdown-friendly caret target receives the response verbatim", async () => {
+  const { deliverAssistantResponse } = await deliveryModule;
+  const { dependencies, pastes } = createDeliveryHarness(true);
+
+  await deliverAssistantResponse(
+    { ...PASTE_DELIVERY, plainText: false },
+    MARKDOWN_RESPONSE,
+    dependencies
+  );
+  assert.equal(pastes[0].text, MARKDOWN_RESPONSE);
+});
+
+test("a clipboard-only delivery keeps the response verbatim", async () => {
+  const { deliverAssistantResponse } = await deliveryModule;
+  const { dependencies, writes } = createDeliveryHarness(false);
+
+  await deliverAssistantResponse({ mode: "clipboard" }, MARKDOWN_RESPONSE, dependencies);
+  assert.deepEqual(writes, [MARKDOWN_RESPONSE]);
+});

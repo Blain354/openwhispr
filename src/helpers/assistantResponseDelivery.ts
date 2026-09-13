@@ -1,3 +1,5 @@
+import { markdownToPlainText } from "./markdownToPlainText";
+
 export type AssistantResponseDelivery =
   | {
       mode: "paste";
@@ -79,15 +81,28 @@ export async function deliverAssistantResponse(
   const clipboard = dependencies.clipboard ?? navigator.clipboard;
 
   if (delivery.mode === "paste") {
+    // plainText is the main process's verdict on the captured app. When set,
+    // the model was asked for prose (plainTextResponse) and this is the floor
+    // under a model that drifts back to markdown. It covers the clipboard
+    // fallback too: a refused paste leaves the user about to paste the same
+    // text by hand into the same field. A markdown-friendly target (Obsidian,
+    // an AI prompt box) gets the answer exactly as written.
+    const text = delivery.plainText ? markdownToPlainText(content) : content;
     try {
-      const result = await electronAPI?.pasteAtCapturedTarget?.(delivery.sessionId, content, {
+      const result = await electronAPI?.pasteAtCapturedTarget?.(delivery.sessionId, text, {
         restoreClipboard: delivery.restoreClipboard,
         allowClipboardFallback: delivery.allowClipboardFallback,
       });
       if (result?.success === true) return { pasted: true, copied: false };
     } catch {}
+    return {
+      pasted: false,
+      copied: await copyAssistantResponse(text, electronAPI, clipboard),
+    };
   }
 
+  // A clipboard-only delivery is shown in the panel as rendered markdown and
+  // its Copy button yields the raw markdown; keep the two copy paths equal.
   return {
     pasted: false,
     copied: await copyAssistantResponse(content, electronAPI, clipboard),
