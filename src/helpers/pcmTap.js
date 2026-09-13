@@ -1,9 +1,9 @@
 import { buildWav } from "../utils/wavBuilder";
 
-export const PCM_TAP_SAMPLE_RATE = 16000;
+const PCM_TAP_SAMPLE_RATE = 16000;
 // Longer recordings fall back to the WebM path: the WAV crosses IPC in one
 // message and must stay well inside Electron's comfortable payload size.
-export const PCM_TAP_MAX_SECONDS = 240;
+const PCM_TAP_MAX_SECONDS = 240;
 const FLUSH_WATCHDOG_MS = 1000;
 
 // A 16 kHz mono PCM16 shadow of the batch MediaRecorder, fed from the same
@@ -57,20 +57,23 @@ export class PcmTap {
   // Resolves to the capture as a WAV blob, or null when the copy was dropped
   // (worklet failed to load, recording too long, or the flush never arrived).
   async stop() {
-    await this._ready;
-    if (this._node && !this._dropped) {
-      let watchdog;
-      const flushed = new Promise((resolve) => {
-        this._flushResolve = () => resolve(true);
+    let watchdog;
+    const flushed = await Promise.race([
+      this._ready.then(() => {
+        if (!this._node || this._dropped) return false;
+        return new Promise((resolve) => {
+          this._flushResolve = () => resolve(true);
+          this._node.port.postMessage("stop");
+        });
+      }),
+      new Promise((resolve) => {
         watchdog = setTimeout(() => resolve(false), FLUSH_WATCHDOG_MS);
-      });
-      this._node.port.postMessage("stop");
-      if (!(await flushed)) this._dropped = true;
-      clearTimeout(watchdog);
-    }
+      }),
+    ]);
+    clearTimeout(watchdog);
     const { _chunks: chunks, _samples: total } = this;
     this.close();
-    if (this._dropped || total === 0) return null;
+    if (!flushed || total === 0) return null;
     const samples = new Int16Array(total);
     let offset = 0;
     for (const chunk of chunks) {

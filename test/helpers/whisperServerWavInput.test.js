@@ -2,33 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 const WhisperServerManager = require("../../src/helpers/whisperServer");
+const { pcm16Mono16kWav } = require("./harness/wavFixtures");
 
 function startServer(handler) {
   const server = http.createServer(handler);
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve({ server, port: server.address().port }));
   });
-}
-
-function pcm16Mono16kWav(sampleCount = 16) {
-  const dataSize = sampleCount * 2;
-  const wav = Buffer.alloc(44 + dataSize);
-  wav.write("RIFF", 0);
-  wav.writeUInt32LE(36 + dataSize, 4);
-  wav.write("WAVE", 8);
-  wav.write("fmt ", 12);
-  wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(16000, 24);
-  wav.writeUInt32LE(32000, 28);
-  wav.writeUInt16LE(2, 32);
-  wav.writeUInt16LE(16, 34);
-  wav.write("data", 36);
-  wav.writeUInt32LE(dataSize, 40);
-  for (let index = 0; index < sampleCount; index += 1)
-    wav.writeInt16LE(index * 100, 44 + index * 2);
-  return wav;
 }
 
 async function serveTranscript(t, onBody) {
