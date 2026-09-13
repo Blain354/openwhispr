@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dictation
+
+- **Dictation starts listening sooner on Windows.** Pressing the hotkey could take two seconds before the microphone opened. Since 1.9.0 the app pins the system-default microphone to a real device so its health checks can run, and on Windows finding that device means starting a PowerShell process that compiles C# on the fly — a lookup that ran on the first dictation after launch and again whenever an audio device came or went, and expired after 30 seconds either way. The answer is now resolved once at launch, kept until the OS reports a device change, and shared between windows, so the hotkey path only has to open the microphone.
+
 ### Transcription
 
 - **Your own Deepgram key works again.** Every Deepgram connection failed with `Unexpected server response: 401`, even though the same key tested fine in Settings and worked against Deepgram directly. Deepgram accepts a raw API key only under its `Token` authorization scheme and reserves `Bearer` for the short-lived tokens OpenWhispr Cloud mints on your behalf — and the app was presenting your key as a `Bearer`. This broke bring-your-own-key dictation as well as Note Recording. (#2140, thanks @nikhilmaddirala)
