@@ -193,8 +193,7 @@ test("a Linux AT-SPI terminal pid never becomes a caret delivery target", async 
   const editor = { kind: "atspi-pid", id: "8765" };
 
   assert.equal(
-    (await manager._markEditableCaret({ status: "none", target: terminal }, terminal, true))
-      .status,
+    (await manager._markEditableCaret({ status: "none", target: terminal }, terminal, true)).status,
     "none"
   );
   assert.equal(probes.length, 0, "a terminal pid must be refused without probing");
@@ -701,4 +700,79 @@ test("empty replacement output is rejected without consuming a paste", async () 
     code: "invalid_replacement",
   });
   assert.equal(pastes.length, 0);
+});
+
+test("a caret in a markdown-native macOS app is reported as accepting markdown", async () => {
+  const { manager } = makeHarness({ selections: [{ state: "none", editable: true }] });
+  manager._readExecutablePath = async () => "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
+
+  const result = await manager.captureSelectedText({ probeEditable: true });
+
+  assert.equal(result.status, "editable");
+  assert.equal(result.acceptsMarkdown, true);
+  assert.equal(manager.sessions.get(result.sessionId).acceptsMarkdown, true);
+});
+
+test("a caret in a plain-text macOS app is reported as wanting plain text", async () => {
+  const { manager } = makeHarness({ selections: [{ state: "none", editable: true }] });
+  manager._readExecutablePath = async () =>
+    "/System/Applications/TextEdit.app/Contents/MacOS/TextEdit";
+
+  const result = await manager.captureSelectedText({ probeEditable: true });
+
+  assert.equal(result.status, "editable");
+  assert.equal(result.acceptsMarkdown, false);
+  assert.equal(manager.sessions.get(result.sessionId).acceptsMarkdown, false);
+});
+
+test("an unreadable pid defaults the caret to plain text", async () => {
+  const { manager } = makeHarness({ selections: [{ state: "none", editable: true }] });
+  manager._readExecutablePath = async () => "";
+
+  const result = await manager.captureSelectedText({ probeEditable: true });
+
+  assert.equal(result.status, "editable");
+  assert.equal(result.acceptsMarkdown, false);
+});
+
+test("Windows and Linux caret targets are judged by the identity they already carry", async () => {
+  const { manager } = makeHarness();
+  manager._readExecutablePath = async () => {
+    throw new Error("must not spawn ps for a target that names its app");
+  };
+
+  assert.equal(
+    await manager._targetAcceptsMarkdown({
+      kind: "win-hwnd",
+      id: "00001A2B",
+      exeName: "Obsidian.exe",
+      windowClass: "Chrome_WidgetWin_1",
+    }),
+    true
+  );
+  assert.equal(
+    await manager._targetAcceptsMarkdown({
+      kind: "win-hwnd",
+      id: "00001A2B",
+      exeName: "WINWORD.EXE",
+    }),
+    false
+  );
+  assert.equal(
+    await manager._targetAcceptsMarkdown({
+      kind: "x11-window",
+      id: "0x1",
+      windowClass: "md.obsidian.obsidian",
+    }),
+    true
+  );
+  assert.equal(await manager._targetAcceptsMarkdown(null), false);
+});
+
+test("a Linux AT-SPI target resolves its executable like the terminal check does", async () => {
+  const { manager } = makeHarness();
+  manager._readExecutablePath = async (pid) => (pid === 77 ? "obsidian" : "");
+
+  assert.equal(await manager._targetAcceptsMarkdown({ kind: "atspi-pid", id: 77 }), true);
+  assert.equal(await manager._targetAcceptsMarkdown({ kind: "atspi-pid", id: 78 }), false);
 });

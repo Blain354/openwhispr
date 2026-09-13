@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { execFile, spawn } = require("child_process");
 const debugLogger = require("./debugLogger");
+const { isMarkdownTargetSignature } = require("./markdownTargets");
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
 const MAX_SELECTION_EDIT_CODE_POINTS = 6000;
@@ -175,12 +176,17 @@ class SelectionManager {
       const capture = await this._readCurrentSelection(expectedTarget, { probeEditable });
       if (capture.status === "editable") {
         const sessionId = crypto.randomUUID();
+        // Decided once, here, and carried on both the session and the result:
+        // the renderer asks the model for plain prose and strips markdown only
+        // when the target is not a markdown-friendly app.
+        const acceptsMarkdown = await this._targetAcceptsMarkdown(capture.target);
         this.sessions.set(sessionId, {
           kind: "caret",
           target: capture.target,
+          acceptsMarkdown,
           expiresAt: this.now() + SESSION_TTL_MS,
         });
-        return { status: "editable", sessionId };
+        return { status: "editable", sessionId, acceptsMarkdown };
       }
       if (capture.status !== "selected") return capture;
 
@@ -515,13 +521,36 @@ class SelectionManager {
   // the parsing below degrades to the bare name unchanged.
   async _isTerminalPid(pid) {
     if (!this.clipboardManager.isTerminalSignature) return false;
+    const names = await this._readTargetNames(pid);
+    return names ? this.clipboardManager.isTerminalSignature(names) : false;
+  }
+
+  // "<bundle name> <executable name>" for a pid — "Visual Studio Code Code" on
+  // macOS, the bare comm name on Linux — or "" when the pid cannot be read.
+  async _readTargetNames(pid) {
     const executablePath = await this._readExecutablePath(pid);
-    if (!executablePath) return false;
+    if (!executablePath) return "";
     // Match the bundle and executable names, not the whole path — segments
     // like "/System/" would collide with short signatures such as "st".
     const bundleName = executablePath.match(/\/([^/]+)\.app\//)?.[1] ?? "";
     const executableName = executablePath.split("/").pop() ?? "";
-    return this.clipboardManager.isTerminalSignature(`${bundleName} ${executableName}`);
+    return `${bundleName} ${executableName}`.trim();
+  }
+
+  // Windows and Linux X11 targets name their app on the target; macOS AX and
+  // Linux AT-SPI targets carry only a pid, so resolve the executable exactly
+  // as the terminal check does. A miss or an error means plain text.
+  async _targetAcceptsMarkdown(target) {
+    if (!target) return false;
+    try {
+      const parts = [this._targetSignature(target)];
+      const pid =
+        target.kind === "mac-pid" ? target.pid : target.kind === "atspi-pid" ? target.id : null;
+      if (pid) parts.push(await this._readTargetNames(pid));
+      return isMarkdownTargetSignature(parts.join(" ").trim());
+    } catch {
+      return false;
+    }
   }
 
   async _readExecutablePath(pid) {
