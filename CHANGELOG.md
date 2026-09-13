@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Transcription
+
+- **Your own Deepgram key works again.** Every Deepgram connection failed with `Unexpected server response: 401`, even though the same key tested fine in Settings and worked against Deepgram directly. Deepgram accepts a raw API key only under its `Token` authorization scheme and reserves `Bearer` for the short-lived tokens OpenWhispr Cloud mints on your behalf — and the app was presenting your key as a `Bearer`. This broke bring-your-own-key dictation as well as Note Recording. (#2140, thanks @nikhilmaddirala)
+- **Your own AssemblyAI key works in Note Recording again.** Recordings died seconds in with `Input Duration Violation: 40.0 ms`, followed by a cascade of reconnect errors. AssemblyAI accepts audio in 50-1000 ms frames, and the app measured those frames against dictation's 16 kHz — but Note Recording streams at 24 kHz, where the same frame lasts only 33-40 ms. The frame size now follows the rate each session actually opened at, and an oversized burst — which a busy moment can produce on the system-audio channel — is split instead of being sent as one frame that trips the same limit from the other end. Dictation was never affected. (#2140, thanks @nikhilmaddirala)
+- **Local transcription no longer silently drops parts of a recording.** whisper.cpp decodes audio in 30-second windows, and the app was starting whisper-server with `--no-timestamps`. Without timestamp tokens the decoder cannot report where it stopped inside a window, so whisper.cpp skipped to the next 30-second mark regardless and the speech in between was discarded — with no gap or warning, and the surviving text still reading as a complete thought. Dictation was the most exposed, but notes and meeting recordings lost the same words whenever a passage ran up to a window boundary. The 60-character segment wrap that `--no-timestamps` was there to suppress is now switched off directly, so words still never split mid-word. (#2150)
+
+### Assistant
 
 - **Voice Assistant on OpenWhispr Cloud with a stray "Separate vision model" switch.** On a managed workspace, an override that was switched on but never given a model was shown with an invented provider and model, and every screenshot command went to that provider without a key, failing with "OpenAI API key not configured". Workspace policy no longer invents a target for an override the user never configured, and a chosen override that policy moves to another provider is cleared rather than repointed, so it asks to be picked again. A failed assistant request is now written to the debug log.
 
