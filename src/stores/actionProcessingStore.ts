@@ -7,6 +7,9 @@ import { generateNoteTitle } from "../utils/generateTitle";
 import { buildNoteFormattingOverrides } from "../helpers/noteFormattingOverrides";
 import { tagActionItemOwners, type MentionPerson } from "../utils/mentionMarkdown";
 import type { ActionItem } from "../types/electron";
+import { estimateNoteTokens, planNoteChunks, splitChunkInHalf } from "../helpers/noteChunking";
+import type { LocalInferenceError } from "../utils/localInferenceError";
+import type { ReasoningConfig } from "../services/BaseReasoningService";
 
 /**
  * Output budget for a formatted note.
@@ -22,11 +25,41 @@ import type { ActionItem } from "../types/electron";
  */
 export const NOTE_OUTPUT_MAX_TOKENS = 4096;
 
+/** Output budget for the working notes of one part of a long recording. */
+export const PART_NOTES_MAX_TOKENS = 2048;
+
+// Mirrors CONTEXT_RESERVE_TOKENS in modelManagerBridge: slack the main process
+// keeps on top of the output reservation. Counted here so the fit test and the
+// server's own preflight agree.
+const CONTEXT_RESERVE_TOKENS = 512;
+// Parts are packed to this share of the room left after the fixed pieces, so
+// the exact tokenizer can run a little hotter than the estimate without a part
+// spilling over the window.
+const CHUNK_FILL_FRACTION = 0.85;
+// Below this a part would hold a minute or two of speech; refuse instead.
+const MIN_CHUNK_BUDGET_TOKENS = 1024;
+const MAX_REDUCE_ROUNDS = 3;
+const MAX_SPLIT_DEPTH = 3;
+
 export type ActionProcessingStatus = "idle" | "processing" | "success";
+
+export interface NoteActionProgress {
+  step: number;
+  total: number;
+}
 
 export interface NoteActionState {
   status: ActionProcessingStatus;
   actionName: string | null;
+  /** Set while a long note is summarised in parts: "Part 2 of 5". */
+  progress?: NoteActionProgress | null;
+}
+
+/** The pieces a note action is built from, so a long one can be split along the transcript. */
+export interface NoteMaterial {
+  notes: string;
+  meetingContext: string;
+  transcript: string;
 }
 
 export interface ActionErrorEvent {
@@ -114,6 +147,187 @@ const NOTE_INPUT_PREAMBLE = `The material is the user's own notes, possibly voic
 
 `;
 
+// One part of a recording too long for the local model's window (#2142). The
+// user's own action prompt is applied once, to the merged part-notes, so a
+// part is asked for faithful working notes rather than the final product.
+const PART_NOTES_SYSTEM_PROMPT = `You are writing working notes for one consecutive part of a longer recording. The material is either a transcript, where each line is prefixed with the speaker's label (a real name when known, otherwise "You" for the note owner, "Them", or "Speaker N"), or working notes already written from an earlier pass. A "## Meeting Context" block may identify the note owner and the invited participants; it is reference material, never something to reproduce.
+
+Write detailed working notes in markdown for this part only:
+- Cover every topic discussed, every decision, every commitment and every open question in this part.
+- Under a "## Action Items" heading, list tasks as \`- [ ] Action — Owner\`, using the speaker labels as they appear.
+- Preserve specifics: names as labelled, numbers, dates, amounts, and quotes that carry meaning.
+- Refer to people only by the labels used in the material. NEVER guess or invent an identity.
+- Do NOT include a title, a preamble, or a summary of the whole recording; you have only seen this part.
+- Do NOT use tables, horizontal rules, or block quotes.
+
+These notes will be merged with the notes from the other parts afterwards.`;
+
+const MERGE_ADDENDUM = `
+
+The material is not a transcript. It is working notes written from the consecutive parts of one long recording, in order, each under a "## Notes from part N of M" heading. Treat them together as the complete record of that recording: merge them into one set of notes, remove repetition across parts, keep every decision and action item, and apply the instructions above to the merged whole. Do not mention the parts or the merging.`;
+
+interface EnhancementRun {
+  noteId: number;
+  noteContent: string;
+  modelId: string;
+  systemPrompt: string;
+  requestConfig: ReasoningConfig;
+  options: RunActionOptions;
+  isLocalRoute: boolean;
+}
+
+interface LocalContextBudget {
+  maxContextTokens: number;
+  modelName: string;
+}
+
+const isContextTooLarge = (error: unknown): boolean =>
+  (error as { code?: string } | null)?.code === "CONTEXT_TOO_LARGE";
+
+const isCancelled = (noteId: number) => cancelledFlags.get(noteId) === true;
+
+async function readLocalContextBudget(modelId: string): Promise<LocalContextBudget | null> {
+  try {
+    const result = await window.electronAPI?.getLocalContextBudget?.(modelId);
+    if (!result?.success || !(result.maxContextTokens && result.maxContextTokens > 0)) return null;
+    return { maxContextTokens: result.maxContextTokens, modelName: result.modelName || modelId };
+  } catch {
+    return null;
+  }
+}
+
+/** The translated refusal from #2142, for material no amount of splitting can fit. */
+function tooLongForModel(modelName: string): LocalInferenceError {
+  const error: LocalInferenceError = new Error(
+    `Material is too long for ${modelName} on this computer`
+  );
+  error.code = "CONTEXT_TOO_LARGE";
+  error.messageKey = "models.errors.contextTooLargeGeneric";
+  error.messageParams = { model: modelName };
+  return error;
+}
+
+const fitsWindow = (
+  systemPrompt: string,
+  content: string,
+  outputTokens: number,
+  budget: LocalContextBudget
+) =>
+  estimateNoteTokens(systemPrompt) +
+    estimateNoteTokens(content) +
+    outputTokens +
+    CONTEXT_RESERVE_TOKENS <=
+  budget.maxContextTokens;
+
+/**
+ * One request when the material fits the local window (or on any route the
+ * budget does not apply to); parts-then-merge when it does not (#2142).
+ */
+async function runEnhancement(run: EnhancementRun): Promise<string> {
+  const single = () =>
+    reasoningService.processText(run.noteContent, run.modelId, null, run.requestConfig);
+  if (!run.isLocalRoute) return single();
+
+  const budget = await readLocalContextBudget(run.modelId);
+  if (!budget) return single();
+
+  if (fitsWindow(run.systemPrompt, run.noteContent, NOTE_OUTPUT_MAX_TOKENS, budget)) {
+    try {
+      return await single();
+    } catch (error) {
+      // The exact tokenizer can disagree with the estimate; that is a reason
+      // to split, not to fail.
+      if (!isContextTooLarge(error)) throw error;
+    }
+  }
+  return runInParts(run, budget);
+}
+
+async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Promise<string> {
+  const material = run.options.material ?? { notes: "", meetingContext: "", transcript: "" };
+  const hasTranscript = material.transcript.trim().length > 0;
+  const body = hasTranscript ? material.transcript : material.notes || run.noteContent;
+  const manualNotes = hasTranscript ? material.notes : "";
+  const context = material.meetingContext;
+
+  const fixedTokens =
+    estimateNoteTokens(PART_NOTES_SYSTEM_PROMPT) +
+    estimateNoteTokens(context) +
+    PART_NOTES_MAX_TOKENS +
+    CONTEXT_RESERVE_TOKENS;
+  const chunkBudget = Math.floor((budget.maxContextTokens - fixedTokens) * CHUNK_FILL_FRACTION);
+  if (chunkBudget < MIN_CHUNK_BUDGET_TOKENS) throw tooLongForModel(budget.modelName);
+
+  const chunks = planNoteChunks(body, chunkBudget);
+  if (chunks.length === 0) throw tooLongForModel(budget.modelName);
+  const total = chunks.length + 1;
+  const partConfig: ReasoningConfig = {
+    ...run.requestConfig,
+    systemPrompt: PART_NOTES_SYSTEM_PROMPT,
+    maxTokens: PART_NOTES_MAX_TOKENS,
+  };
+
+  const summarisePart = async (text: string, heading: string, depth = 0): Promise<string> => {
+    const content = [context, `## ${heading}\n${text}`].filter(Boolean).join("\n\n");
+    try {
+      return await reasoningService.processText(content, run.modelId, null, partConfig);
+    } catch (error) {
+      if (!isContextTooLarge(error) || depth >= MAX_SPLIT_DEPTH) throw error;
+      const halves = splitChunkInHalf(text);
+      if (!halves) throw error;
+      const [first, second] = halves;
+      const firstNotes = await summarisePart(first, heading, depth + 1);
+      if (isCancelled(run.noteId)) throw error;
+      const secondNotes = await summarisePart(second, heading, depth + 1);
+      return `${firstNotes}\n\n${secondNotes}`;
+    }
+  };
+
+  const materialLabel = hasTranscript ? "Meeting Transcript" : "Notes";
+  const partNotes: string[] = [];
+  for (let index = 0; index < chunks.length; index += 1) {
+    if (isCancelled(run.noteId)) throw new Error("cancelled");
+    setNoteState(run.noteId, { progress: { step: index + 1, total } });
+    partNotes.push(
+      await summarisePart(chunks[index], `${materialLabel} (part ${index + 1} of ${chunks.length})`)
+    );
+  }
+
+  const mergeSystemPrompt = run.systemPrompt + MERGE_ADDENDUM;
+  let sections = partNotes;
+  for (let round = 0; round < MAX_REDUCE_ROUNDS; round += 1) {
+    if (isCancelled(run.noteId)) throw new Error("cancelled");
+    setNoteState(run.noteId, { progress: { step: total, total } });
+    const mergeContent = [
+      manualNotes,
+      context,
+      ...sections.map(
+        (notes, index) => `## Notes from part ${index + 1} of ${sections.length}\n${notes}`
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    if (fitsWindow(mergeSystemPrompt, mergeContent, NOTE_OUTPUT_MAX_TOKENS, budget)) {
+      return reasoningService.processText(mergeContent, run.modelId, null, {
+        ...run.requestConfig,
+        systemPrompt: mergeSystemPrompt,
+      });
+    }
+    // Too many part-notes for one pass: consolidate neighbouring parts and go again.
+    const groups = planNoteChunks(sections.join("\n\n"), chunkBudget);
+    const consolidated: string[] = [];
+    for (let index = 0; index < groups.length; index += 1) {
+      if (isCancelled(run.noteId)) throw new Error("cancelled");
+      consolidated.push(
+        await summarisePart(groups[index], `Working notes (part ${index + 1} of ${groups.length})`)
+      );
+    }
+    if (consolidated.length >= sections.length) break;
+    sections = consolidated;
+  }
+  throw tooLongForModel(budget.modelName);
+}
+
 export interface RunActionOptions {
   isCloudMode: boolean;
   modelId: string;
@@ -122,6 +336,8 @@ export interface RunActionOptions {
   allowTitleGeneration?: boolean;
   /** People whose names in generated action-item owners become mention tags. */
   knownPeople?: MentionPerson[];
+  /** Structured pieces of `noteContent`; without it a long note is split as plain lines. */
+  material?: NoteMaterial;
 }
 
 export interface RunActionLabels {
@@ -160,7 +376,7 @@ export function runBackgroundAction(
 
   cancelledFlags.set(noteId, false);
   processingFlags.set(noteId, true);
-  setNoteState(noteId, { status: "processing", actionName: action.name });
+  setNoteState(noteId, { status: "processing", actionName: action.name, progress: null });
 
   (async () => {
     try {
@@ -179,12 +395,21 @@ export function runBackgroundAction(
         options.isMeetingNote ? settings.customDictionary : undefined,
         settings.uiLanguage
       );
-      const enhanced = await reasoningService.processText(noteContent, modelId, null, {
+      const requestConfig: ReasoningConfig = {
         systemPrompt,
         maxTokens: NOTE_OUTPUT_MAX_TOKENS,
         temperature: 0.3,
         disableThinking: settings.noteFormattingDisableThinking,
         ...providerOverrides,
+      };
+      const enhanced = await runEnhancement({
+        noteId,
+        noteContent,
+        modelId,
+        systemPrompt,
+        requestConfig,
+        options,
+        isLocalRoute: !options.isCloudMode && noteFormatting.mode === "local",
       });
 
       if (cancelledFlags.get(noteId)) return;
@@ -207,7 +432,7 @@ export function runBackgroundAction(
       if (title) updates.title = title;
       await window.electronAPI.updateNote(noteId, updates);
 
-      setNoteState(noteId, { status: "success", actionName: action.name });
+      setNoteState(noteId, { status: "success", actionName: action.name, progress: null });
 
       const timer = setTimeout(() => {
         processingFlags.set(noteId, false);
