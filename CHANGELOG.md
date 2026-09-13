@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Dictation
 
 - **Dictation starts listening sooner on Windows.** Pressing the hotkey could take two seconds before the microphone opened. Since 1.9.0 the app pins the system-default microphone to a real device so its health checks can run, and on Windows finding that device means starting a PowerShell process that compiles C# on the fly — a lookup that ran on the first dictation after launch and again whenever an audio device came or went, and expired after 30 seconds either way. The answer is now resolved once at launch, kept until the OS reports a device change, and shared between windows, so the hotkey path only has to open the microphone.
+- **Learned corrections skip everyday words.** When you fixed a transcript by swapping one common word for another, such as "why" for "what", the app treated the replacement as a mishearing and saved it to your dictionary. Those entries taught the cleanup model nothing and padded every request. Corrections that resolve to a common English word are no longer learned; names and jargon are unaffected.
 
 ### Transcription
 
