@@ -4,6 +4,8 @@ export type AssistantResponseDelivery =
       sessionId: string;
       restoreClipboard: boolean;
       allowClipboardFallback: boolean;
+      /** Ask for prose and strip markdown before pasting. False for a markdown-friendly target. */
+      plainText: boolean;
     }
   | { mode: "clipboard" };
 
@@ -28,11 +30,13 @@ interface AssistantResponseDeliveryDependencies {
 export function createAssistantResponseDelivery({
   autoPasteEnabled,
   deliverySessionId,
+  acceptsMarkdown = false,
   restoreClipboard,
   allowClipboardFallback,
 }: {
   autoPasteEnabled: boolean;
   deliverySessionId?: string;
+  acceptsMarkdown?: boolean;
   restoreClipboard: boolean;
   allowClipboardFallback: boolean;
 }): AssistantResponseDelivery | null {
@@ -44,6 +48,7 @@ export function createAssistantResponseDelivery({
     sessionId: deliverySessionId,
     restoreClipboard,
     allowClipboardFallback,
+    plainText: !acceptsMarkdown,
   };
 }
 

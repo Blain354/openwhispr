@@ -11,6 +11,7 @@ const PASTE_DELIVERY = {
   mode: "paste",
   sessionId: "caret-session",
   ...PASTE_OPTIONS,
+  plainText: true,
 };
 
 function createDeliveryHarness(pasteSuccess) {
@@ -38,16 +39,22 @@ function createDeliveryHarness(pasteSuccess) {
 
 test("Assistant delivery mode follows Auto-Paste and target state", async () => {
   const { createAssistantResponseDelivery } = await deliveryModule;
-  const createDelivery = (autoPasteEnabled, deliverySessionId) =>
+  const createDelivery = (autoPasteEnabled, deliverySessionId, acceptsMarkdown) =>
     createAssistantResponseDelivery({
       autoPasteEnabled,
       deliverySessionId,
+      acceptsMarkdown,
       ...PASTE_OPTIONS,
     });
 
   assert.equal(createDelivery(false), null);
   assert.deepEqual(createDelivery(true), { mode: "clipboard" });
   assert.deepEqual(createDelivery(true, "caret-session"), PASTE_DELIVERY);
+  assert.deepEqual(createDelivery(true, "caret-session", false), PASTE_DELIVERY);
+  assert.deepEqual(createDelivery(true, "caret-session", true), {
+    ...PASTE_DELIVERY,
+    plainText: false,
+  });
 });
 
 test("a captured Assistant target receives the response without replacing the clipboard", async () => {
