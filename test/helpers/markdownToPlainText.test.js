@@ -82,3 +82,17 @@ test("plain-text conventions a human would type are never altered", async () => 
   const answer = "2 * 3 * 4 = 24\nsnake_case_name stays\na lone * star\n#hashtag\nx > y";
   assert.equal(markdownToPlainText(answer), answer);
 });
+
+test("dunder identifiers survive the underscored-bold guard", async () => {
+  const { markdownToPlainText } = await helperModule;
+  assert.equal(markdownToPlainText("def __init__(self): pass"), "def __init__(self): pass");
+  assert.equal(markdownToPlainText("MAX__VALUE stays"), "MAX__VALUE stays");
+  assert.equal(markdownToPlainText("__bold__ word"), "bold word");
+});
+
+test("inline code content is verbatim, never run through other inline rules", async () => {
+  const { markdownToPlainText } = await helperModule;
+  assert.equal(markdownToPlainText("use `__init__` here"), "use __init__ here");
+  assert.equal(markdownToPlainText("inline `**not bold**` code"), "inline **not bold** code");
+  assert.equal(markdownToPlainText("`C:\\Users\\me`"), "C:\\Users\\me");
+});

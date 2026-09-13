@@ -13,23 +13,41 @@ const HORIZONTAL_RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_ALIGNMENT_CELL = /^:?-+:?$/;
 
+// Inline code content must be verbatim: no emphasis/link/escape rule may
+// touch what is inside a `code span`. Lift each span out to a private-use
+// placeholder before the other inline rules run, then restore the raw
+// content afterward so nothing inside it is ever rewritten.
+const CODE_PLACEHOLDER = /(\d+)/g;
+
 function stripInline(text: string): string {
-  return (
-    text
-      .replace(/(?<!\\)`([^`]+)`/g, "$1")
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-      .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_match, label: string, url: string) =>
-        label === url ? url : `${label} (${url})`
-      )
-      .replace(/(?<!\\)(\*\*|__)(\S(?:.*?\S)?)\1/g, "$2")
-      .replace(/(?<!\\)~~(\S(?:.*?\S)?)~~/g, "$1")
-      // Markers must hug non-space on the inside, not sit inside a word on the
-      // outside, and not be escaped — so `2 * 3`, snake_case and `\*` survive.
-      .replace(/(?<![\w*\\])\*(\S(?:.*?\S)?)\*(?![\w*])/g, "$1")
-      .replace(/(?<![\w_\\])_(\S(?:.*?\S)?)_(?![\w_])/g, "$1")
-      // Escapes resolve last so an escaped marker is never re-stripped.
-      .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, "$1")
-  );
+  const codeSpans: string[] = [];
+  const withPlaceholders = text.replace(/(?<!\\)`([^`]+)`/g, (_match, content: string) => {
+    codeSpans.push(content);
+    return `${codeSpans.length - 1}`;
+  });
+
+  const stripped = withPlaceholders
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_match, label: string, url: string) =>
+      label === url ? url : `${label} (${url})`
+    )
+    // `**` may sit intraword (intraword bold is legitimate); `__` requires a
+    // non-word close that is also not `(`, so dunder identifiers such as
+    // `__init__` (immediately followed by a call's `(`) are never mistaken
+    // for emphasis, while `__bold__ word` still strips.
+    .replace(/(?<!\\)\*\*(\S(?:.*?\S)?)\*\*/g, "$1")
+    .replace(/(?<![\w\\])__(\S(?:.*?\S)?)__(?![\w(])/g, "$1")
+    .replace(/(?<!\\)~~(\S(?:.*?\S)?)~~/g, "$1")
+    // Markers must hug non-space on the inside, not sit inside a word on the
+    // outside, and not be escaped — so `2 * 3`, snake_case and `\*` survive.
+    // The single-underscore content also may not start or end with `_` itself,
+    // so a dunder like `__init__` is never absorbed as `_` + `_init_` + `_`.
+    .replace(/(?<![\w*\\])\*(\S(?:.*?\S)?)\*(?![\w*])/g, "$1")
+    .replace(/(?<![\w_\\])_(?!_)(\S(?:.*?[^\s_])?)_(?![\w_])/g, "$1")
+    // Escapes resolve last so an escaped marker is never re-stripped.
+    .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, "$1");
+
+  return stripped.replace(CODE_PLACEHOLDER, (_match, index: string) => codeSpans[Number(index)]);
 }
 
 export function markdownToPlainText(markdown: string): string {
