@@ -6,6 +6,7 @@ const {
   managedScopesForConfig,
 } = require("./enterpriseManagedConfig.mjs");
 const { AuthContextError } = require("./cloudApiRequest");
+const { withPortableBuildHeader } = require("./portableBuild");
 
 const CONFIG_CACHE_VERSION = 1;
 const CONFIG_REFRESH_MS = 5 * 60 * 1000;
@@ -215,11 +216,11 @@ function createEnterpriseIdentityManager({
   }
 
   function requestHeaders(identity, json = false) {
-    return {
+    return withPortableBuildHeader({
       ...identity.authHeaders,
       "x-openwhispr-version": getAppVersion(),
       ...(json ? { "Content-Type": "application/json" } : {}),
-    };
+    });
   }
 
   async function fetchWithTimeout(url, init) {

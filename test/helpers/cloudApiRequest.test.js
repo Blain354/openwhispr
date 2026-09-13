@@ -87,6 +87,7 @@ test("a stable authenticated request is bearer-only and returns parsed data", as
     assert.equal(options.headers["x-openwhispr-policy-version"], "1");
     assert.equal(options.headers["x-openwhispr-version"], "1.2.3");
     assert.equal(options.headers["x-openwhispr-source"], "desktop");
+    assert.equal(options.headers["x-openwhispr-portable"], "0");
     return new Response(JSON.stringify({ data: [{ id: "space-a" }] }));
   });
 
@@ -109,6 +110,7 @@ test("public requests carry neither bearer nor cookies", async () => {
     assert.equal(options.headers["x-openwhispr-policy-version"], undefined);
     assert.equal(options.headers["x-openwhispr-version"], "1.2.3");
     assert.equal(options.headers["x-openwhispr-source"], "desktop");
+    assert.equal(options.headers["x-openwhispr-portable"], "0");
     return new Response(JSON.stringify({ data: { invite: "preview" } }));
   });
 
@@ -149,4 +151,27 @@ test("preserves policy and upgrade metadata from authenticated cloud failures", 
     details: { minAppVersion: "2.0.0" },
     minAppVersion: "2.0.0",
   });
+});
+
+// A stranded portable user's requests are the only ones we can measure, so the
+// flavour must ride on both the authenticated and the public header branch.
+test("a portable build says so on both header branches", async () => {
+  const saved = process.env.PORTABLE_EXECUTABLE_DIR;
+  process.env.PORTABLE_EXECUTABLE_DIR = "C:\\Users\\someone\\Downloads";
+  try {
+    const state = { current: { token: "token-a", generation: 3 } };
+    const seen = [];
+    const handler = createHandler(state, async (_url, options) => {
+      seen.push(options.headers["x-openwhispr-portable"]);
+      return new Response("{}");
+    });
+
+    await handler({ method: "GET", path: "/api/me/spaces", expectedAuthGeneration: 3 });
+    await handler({ method: "GET", path: "/api/invitations/preview", public: true });
+
+    assert.deepEqual(seen, ["1", "1"]);
+  } finally {
+    if (saved === undefined) delete process.env.PORTABLE_EXECUTABLE_DIR;
+    else process.env.PORTABLE_EXECUTABLE_DIR = saved;
+  }
 });

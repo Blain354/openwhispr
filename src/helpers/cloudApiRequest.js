@@ -1,4 +1,5 @@
 const { withPolicyRequestHeaders } = require("./policyRequestHeaders");
+const { withPortableBuildHeader } = require("./portableBuild");
 
 class AuthContextError extends Error {
   constructor(message, code = "AUTH_CONTEXT_CHANGED") {
@@ -97,7 +98,7 @@ function createCloudApiRequestHandler({
       // v1 using the same exact headers as direct main-process request paths.
       const headers = fence
         ? withPolicyRequestHeaders({ Authorization: fence.authorization }, getAppVersion())
-        : { "x-openwhispr-version": getAppVersion() };
+        : withPortableBuildHeader({ "x-openwhispr-version": getAppVersion() });
       headers["x-openwhispr-source"] = "desktop";
       const fetchOptions = {
         method,
