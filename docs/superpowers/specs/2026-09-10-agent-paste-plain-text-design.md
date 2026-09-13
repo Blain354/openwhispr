@@ -1,7 +1,7 @@
 # Agent answers paste as plain text — design
 
 **Date:** 2026-09-10, revised 2026-09-11 (markdown-friendly targets)
-**Status:** awaiting Josh's sign-off before anything is built
+**Status:** approved by Josh, 2026-09-13 — build may proceed against the plan; nothing merges without him
 **Origin:** Finding 3 of the 1.10.0 release testing report (titan,
 `artefacts/reports/2026-09-10-openwhispr-1-10-0-release-testing.md`)
 
