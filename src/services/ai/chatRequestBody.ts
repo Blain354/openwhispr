@@ -71,6 +71,24 @@ export function isTruncatedFinishReason(reason: unknown): boolean {
 }
 
 /**
+ * Error for a completion that produced no text, or null when the caller may
+ * echo its input instead. Only the default cleanup transform (no systemPrompt)
+ * may echo: a prompted task would take its raw material as the finished result.
+ */
+export function emptyResponseError(
+  providerName: string,
+  config: ReasoningConfig,
+  responseIncomplete: boolean
+): Error | null {
+  if (config.requireCompleteOutput) return new Error("Model returned an empty selection edit");
+  if (responseIncomplete) {
+    return new Error("Model ran out of output tokens before producing a response");
+  }
+  if (config.systemPrompt) return new Error(`${providerName} returned empty response`);
+  return null;
+}
+
+/**
  * Shaped params a backend may reject by name with a 400/422. Only params this
  * module's shaping layer added are strippable — never messages or model — so a
  * retry degrades the request (model reasons when asked not to, default

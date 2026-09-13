@@ -28,6 +28,7 @@ import {
 } from "./ai/openaiBase";
 import {
   applyChatCompletionsParams,
+  emptyResponseError,
   fetchWithParamFallback,
   isTruncatedFinishReason,
 } from "./ai/chatRequestBody";
@@ -430,7 +431,10 @@ class ReasoningService extends BaseReasoningService {
         hasMessage: !!choice.message,
         response: JSON.stringify(choice).substring(0, 500),
       });
-      throw new Error(`${providerName} returned empty response`);
+      throw (
+        emptyResponseError(providerName, config, isTruncatedFinishReason(choice.finish_reason)) ??
+        new Error(`${providerName} returned empty response`)
+      );
     }
 
     logger.logReasoning(`${providerName.toUpperCase()}_RESPONSE`, {
