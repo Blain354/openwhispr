@@ -91,7 +91,8 @@
         "failedToRegister": "فشل تسجيل الاختصار. يرجى المحاولة مرة أخرى."
       },
       "messages": {
-        "nowUsing": "يتم الآن استخدام {{hotkey}} للإملاء"
+        "nowUsing": "يتم الآن استخدام {{hotkey}} للإملاء",
+        "holdSwitchedToTap": "Hold isn't available for {{hotkey}} on this device, so activation switched to Tap."
       }
     },
     "modelDownload": {
@@ -1360,6 +1361,17 @@
       "askAssistant": "اسأل المساعد",
       "busyRecording": "أنهِ التسجيل الحالي أولاً",
       "startMeetingRecording": "بدء تسجيل الاجتماع"
+    },
+    "handsFreeTip": {
+      "badge": "Tip",
+      "title": "Switch to hands-free mode",
+      "description": "Double tap {{hotkey}} to start hands-free mode."
+    },
+    "holdMigrationCard": {
+      "badge": "New in this update",
+      "title": "Hold to speak, release to finish",
+      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
+      "gesture": "Double press it for hands‑free, press again to stop."
     }
   },
   "calendar": {
@@ -2947,7 +2959,15 @@
         "linuxPttSetupNote": "بعد تشغيل الأمر، قم بتسجيل الخروج وتسجيل الدخول مرة أخرى.",
         "hyprlandConfigWriteWarningTitle": "لن يتم حفظ اختصارات Hyprland بشكل دائم",
         "hyprlandConfigWriteWarningDescription": "لا يمكن لـ OpenWhispr الكتابة إلى {{path}}، لذلك لن تبقى الاختصارات بعد إعادة تحميل تكوين Hyprland. تأكد من وجود الملف وقابليته للكتابة.",
-        "hyprlandUnbindDescription": "في Hyprland، يستحوذ OpenWhispr على الاختصار المحدد. سيتم فك أي ارتباط Hyprland موجود يستخدم مجموعة المفاتيح نفسها عندما يسجل OpenWhispr اختصاره."
+        "hyprlandUnbindDescription": "في Hyprland، يستحوذ OpenWhispr على الاختصار المحدد. سيتم فك أي ارتباط Hyprland موجود يستخدم مجموعة المفاتيح نفسها عندما يسجل OpenWhispr اختصاره.",
+        "gestures": {
+          "holdTitle": "Hold to speak",
+          "holdDetail": "Release to finish",
+          "handsFreeTitle": "Hands-free",
+          "handsFreeDetail": "Press again to stop",
+          "doublePress": "Double press",
+          "tapOnlyTitle": "Press to start, press again to stop"
+        }
       },
       "meetingHotkey": {
         "title": "مفتاح اختصار وضع الاجتماع",
@@ -3519,11 +3539,17 @@
       "mouseButtonOnlyMac": "اختصارات أزرار الماوس مدعومة حاليًا على نظام macOS فقط.",
       "alreadyRegistered": "\"{{hotkey}}\" مسجل بالفعل بواسطة تطبيق آخر.",
       "osReserved": "قد يكون \"{{hotkey}}\" محجوزًا بواسطة بيئة سطح المكتب لديك.",
-      "holdNeedsReleaseKey": "يحتاج الضغط المستمر للتحدث إلى مفتاح يمكن لـ macOS أن يرصد تحريره: Globe، أو مفتاح جانبي أيمن مثل Option الأيمن، أو اختصار مع مفتاح تعديل. أما النقر فيعمل مع أي مفتاح.",
       "registrationFailed": "تعذر تسجيل \"{{hotkey}}\". قد يكون قيد الاستخدام بواسطة تطبيق آخر.",
       "updateFailedCheckFormat": "فشل تحديث الاختصار إلى \"{{hotkey}}\". تأكد من أن التنسيق صالح.",
       "trySuggestions": "جرّب: {{suggestions}}",
-      "slotConflict": "هذا الاختصار مستخدم بالفعل لـ {{slot}}."
+      "slotConflict": "هذا الاختصار مستخدم بالفعل لـ {{slot}}.",
+      "holdNeedsRegularKey": "\"{{hotkey}}\" has no regular key, so your desktop cannot tell when you release it. Try {{suggestion}}.",
+      "holdUnsupportedOnDesktop": "Your desktop cannot report when a key is released. Hold to speak needs GNOME 48 or newer, KDE Plasma, or an X11 session.",
+      "holdUnsupportedOnHyprland": "On Hyprland, Hold is only available for the dictation hotkey."
+    },
+    "portal": {
+      "voiceAgentHold": "Hold to talk to the assistant",
+      "translationHold": "Hold to dictate for translation"
     }
   },
   "systemSettings": {

@@ -121,7 +121,6 @@
       "mouseButtonOnlyMac": "Les raccourcis avec les boutons de la souris ne sont actuellement pris en charge que sur macOS.",
       "alreadyRegistered": "\"{{hotkey}}\" est déjà enregistré par une autre application.",
       "osReserved": "\"{{hotkey}}\" peut être réservé par votre environnement de bureau.",
-      "holdNeedsReleaseKey": "Maintenir pour parler nécessite une touche dont macOS détecte le relâchement : Globe, une touche droite comme Option droite, ou un raccourci avec modificateur. Appuyer fonctionne avec n’importe quelle touche.",
       "holdNeedsRegularKey": "\"{{hotkey}}\" ne contient aucune touche normale, votre bureau ne peut donc pas détecter le relâchement. Essayez {{suggestion}}.",
       "holdUnsupportedOnDesktop": "Votre bureau ne peut pas signaler le relâchement d'une touche. Maintenir pour parler nécessite GNOME 48 ou plus récent, KDE Plasma ou une session X11.",
       "registrationFailed": "Impossible d'enregistrer \"{{hotkey}}\". Il est peut-être utilisé par une autre application.",
