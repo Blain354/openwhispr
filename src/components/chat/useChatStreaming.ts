@@ -28,8 +28,8 @@ import {
 } from "../../utils/agentSelectionContext";
 
 const RAG_NOTE_LIMIT = 5;
-const STREAM_FLUSH_INTERVAL_MS = 32;
 const RAG_NOTE_SNIPPET_LENGTH = 500;
+const STREAM_FLUSH_INTERVAL_MS = 32;
 
 const LOCAL_TOOL_MIN_PARAMS_B = 4;
 
@@ -472,7 +472,6 @@ export function useChatStreaming({
 
         for await (const chunk of stream) {
           if (!mountedRef.current) {
-            flushContentNow();
             ReasoningService.cancelActiveStream();
             break;
           }
