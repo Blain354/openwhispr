@@ -22,6 +22,9 @@ test("markdown-friendly apps match on every platform's identity shape", () => {
     "Obsidian.exe Chrome_WidgetWin_1", // Windows exe + Electron window class
     "Code.exe Chrome_WidgetWin_1",
     "idea64.exe SunAwtFrame",
+    "pycharm64.exe SunAwtFrame",
+    "webstorm64.exe",
+    "datagrip64.exe",
     "notepad++.exe Notepad++",
     "M365Copilot.exe",
     "md.obsidian.obsidian", // Linux Flatpak WM_CLASS
