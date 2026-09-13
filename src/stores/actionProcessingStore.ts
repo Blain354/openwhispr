@@ -38,6 +38,11 @@ const CONTEXT_RESERVE_TOKENS = 512;
 const CHUNK_FILL_FRACTION = 0.85;
 // Below this a part would hold a minute or two of speech; refuse instead.
 const MIN_CHUNK_BUDGET_TOKENS = 1024;
+// A part is never larger than this even when the window allows more. Small
+// local models lose specifics as the input grows (measured: Llama 3.2 3B given
+// a 20k-token part wrote five generic bullets and dropped every number), and
+// only the chunked path pays for the extra calls. Roughly an hour of speech.
+const MAX_PART_TOKENS = 12288;
 const MAX_REDUCE_ROUNDS = 3;
 const MAX_SPLIT_DEPTH = 3;
 
@@ -152,10 +157,24 @@ const NOTE_INPUT_PREAMBLE = `The material is the user's own notes, possibly voic
 // part is asked for faithful working notes rather than the final product.
 const PART_NOTES_SYSTEM_PROMPT = `You are writing working notes for one consecutive part of a longer recording. The material is either a transcript, where each line is prefixed with the speaker's label (a real name when known, otherwise "You" for the note owner, "Them", or "Speaker N"), or working notes already written from an earlier pass. A "## Meeting Context" block may identify the note owner and the invited participants; it is reference material, never something to reproduce.
 
-Write detailed working notes in markdown for this part only:
-- Cover every topic discussed, every decision, every commitment and every open question in this part.
-- Under a "## Action Items" heading, list tasks as \`- [ ] Action — Owner\`, using the speaker labels as they appear.
-- Preserve specifics: names as labelled, numbers, dates, amounts, and quotes that carry meaning.
+Write detailed working notes in markdown for this part only. Be thorough: these notes replace the material for whoever writes the final notes, so anything you leave out is lost. Use exactly these sections, in this order, and omit a section only if this part truly has nothing for it:
+
+## Topics
+One bullet per topic discussed in this part, each with the substance of what was said, in order.
+
+## Decisions
+Every decision, agreement or commitment made in this part, one bullet each, with who made it (by label) and any date, amount or condition attached.
+
+## Specifics
+Every number, date, amount, deadline, name of a product, customer, vendor or document, and every quote that carries meaning, one bullet each, stated exactly as in the material.
+
+## Action Items
+Tasks as \`- [ ] Action — Owner\`, using the speaker labels as they appear.
+
+## Open Questions
+Anything raised but not resolved in this part.
+
+Rules:
 - Refer to people only by the labels used in the material. NEVER guess or invent an identity.
 - Do NOT include a title, a preamble, or a summary of the whole recording; you have only seen this part.
 - Do NOT use tables, horizontal rules, or block quotes.
@@ -164,7 +183,7 @@ These notes will be merged with the notes from the other parts afterwards.`;
 
 const MERGE_ADDENDUM = `
 
-The material is not a transcript. It is working notes written from the consecutive parts of one long recording, in order, each under a "## Notes from part N of M" heading. Treat them together as the complete record of that recording: merge them into one set of notes, remove repetition across parts, keep every decision and action item, and apply the instructions above to the merged whole. Do not mention the parts or the merging.`;
+The material is not a transcript. It is working notes written from the consecutive parts of one long recording, in order, each under a "## Notes from part N of M" heading. Treat them together as the complete record of that recording and apply the instructions above to the merged whole. Completeness outranks brevity here: every decision, commitment, action item, number, date, amount and deadline recorded in any part, including the first parts, must appear in the final notes, and they may be as long as that requires. Remove only repetition across parts. Do not mention the parts or the merging.`;
 
 interface EnhancementRun {
   noteId: number;
@@ -255,7 +274,10 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
     estimateNoteTokens(context) +
     PART_NOTES_MAX_TOKENS +
     CONTEXT_RESERVE_TOKENS;
-  const chunkBudget = Math.floor((budget.maxContextTokens - fixedTokens) * CHUNK_FILL_FRACTION);
+  const chunkBudget = Math.min(
+    MAX_PART_TOKENS,
+    Math.floor((budget.maxContextTokens - fixedTokens) * CHUNK_FILL_FRACTION)
+  );
   if (chunkBudget < MIN_CHUNK_BUDGET_TOKENS) throw tooLongForModel(budget.modelName);
 
   const chunks = planNoteChunks(body, chunkBudget);
