@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Voice Assistant on OpenWhispr Cloud with a stray "Separate vision model" switch.** On a managed workspace, an override that was switched on but never given a model was shown with an invented provider and model, and every screenshot command went to that provider without a key, failing with "OpenAI API key not configured". Workspace policy no longer invents a target for an override the user never configured, and a chosen override that policy moves to another provider is cleared rather than repointed, so it asks to be picked again. Screenshot commands now stay on OpenWhispr Cloud while the assistant runs there; the separate BYOK vision model is offered, and applies, only when the assistant runs elsewhere. A failed assistant request is now written to the debug log.
+- **Voice Assistant on OpenWhispr Cloud with a stray "Separate vision model" switch.** On a managed workspace, an override that was switched on but never given a model was shown with an invented provider and model, and every screenshot command went to that provider without a key, failing with "OpenAI API key not configured". Workspace policy no longer invents a target for an override the user never configured, and a chosen override that policy moves to another provider is cleared rather than repointed, so it asks to be picked again. A failed assistant request is now written to the debug log.
 
 ## [1.10.0] - 2026-09-11
 

@@ -72,14 +72,6 @@ export function resolveDictationAgentInference(settings, { isCloudAgent = false 
   };
 }
 
-// Whether the separate vision model is offered at all. The cloud vision-routes
-// screenshot commands itself, so the settings tab hides the override while the
-// assistant runs there and the resolver below applies the same rule: a target
-// chosen under another mode stays parked instead of redirecting the request.
-export function visionOverrideOffered(settings) {
-  return selectResolvedLLMConfig(settings, "dictationAgent").mode !== "openwhispr";
-}
-
 // The optional vision override: the scope a voice-agent request uses when it
 // carries a screen-context screenshot. Resolved through the store selector so
 // unset fields inherit the agent's own config, and treated as "active" only
@@ -112,7 +104,6 @@ export function resolveDictationAgentVisionInference(settings, { isSignedIn = fa
 
   return {
     active:
-      visionOverrideOffered(settings) &&
       !!settings.useDictationAgentVisionModel &&
       chosen &&
       resolveModeReachability({ mode, provider, model, isCloud, isSelfHosted: false }),
