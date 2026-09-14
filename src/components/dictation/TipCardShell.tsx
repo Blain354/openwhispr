@@ -7,6 +7,8 @@ import { CardCountdownArc } from "./CardCountdownArc";
 export const TIP_CARD_WIDTH = 320;
 const CARD_RADIUS = 24;
 
+// Physical on purpose: `align` is the pill's screen edge, which does not flip
+// with the writing direction. The controls inside the card do (see below).
 const ALIGN_CLASS = {
   right: "right-0",
   left: "left-0",
@@ -68,7 +70,7 @@ export function TipCardShell({
           paused={countdown.paused}
         />
       )}
-      <span className="hands-free-tip-badge inline-flex h-6 items-center gap-1.5 rounded-full pl-2 pr-2.5 text-[13px] font-medium">
+      <span className="hands-free-tip-badge inline-flex h-6 items-center gap-1.5 rounded-full ps-2 pe-2.5 text-[13px] font-medium">
         {badgeIcon}
         {badge}
       </span>
@@ -76,7 +78,7 @@ export function TipCardShell({
         type="button"
         aria-label={t("common.dismiss")}
         onClick={onDismiss}
-        className="absolute right-4.5 top-4.5 flex size-7 items-center justify-center rounded-full border border-border/55 bg-surface-2 text-muted-foreground shadow-sm transition-colors hover:bg-surface-3 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="absolute end-4.5 top-4.5 flex size-7 items-center justify-center rounded-full border border-border/55 bg-surface-2 text-muted-foreground shadow-sm transition-colors hover:bg-surface-3 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         <X size={13} strokeWidth={2.5} aria-hidden="true" />
       </button>

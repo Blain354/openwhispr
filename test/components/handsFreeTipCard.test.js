@@ -54,3 +54,16 @@ test("with the pill hidden the tip takes the pill's place", async (t) => {
   assert.match(markup, /bottom-0/);
   assert.doesNotMatch(markup, /bottom-full/);
 });
+
+// The card renders in the pill window under the app's text direction. Arabic
+// puts the badge at the inline start, so the dismiss button and the badge
+// padding must be logical: a physical right-hand X lands on the badge in RTL.
+// (align stays physical on purpose — it tracks the pill's screen edge.)
+test("the shell's controls follow the writing direction, not the screen side", async (t) => {
+  const markup = await renderCard(t);
+
+  assert.match(markup, /aria-label="common\.dismiss"[^>]*class="[^"]*\bend-4\.5\b/);
+  assert.match(markup, /hands-free-tip-badge[^"]*\bps-2\b[^"]*\bpe-2\.5\b/);
+  assert.doesNotMatch(markup, /\b(right|left)-4\.5\b/);
+  assert.doesNotMatch(markup, /\bp[lr]-2(\.5)?\b/);
+});
