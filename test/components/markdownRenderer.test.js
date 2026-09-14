@@ -21,8 +21,52 @@ async function renderMarkdown(t, content) {
     cachePrefix: "openwhispr-markdown-renderer-test-",
   });
   const mod = await vite.ssrLoadModule("/components/ui/MarkdownRenderer.tsx");
+  if (Array.isArray(content)) {
+    return renderToStaticMarkup(
+      createElement(
+        "div",
+        null,
+        ...content.map((message) => createElement(mod.default, { content: message }))
+      )
+    );
+  }
   return renderToStaticMarkup(createElement(mod.default, { content }));
 }
+
+test("footnote references and backlinks reach accessible in-document destinations", async (t) => {
+  const html = await renderMarkdown(t, "Claim.[^source] Again.[^source]\n\n[^source]: Evidence.");
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  const links = [...html.matchAll(/<a\b[^>]*href="#[^"]+"[^>]*>/g)].map((match) => match[0]);
+
+  assert.equal(links.length, 4, "two references and their return links");
+  for (const link of links) {
+    const destination = link.match(/href="#([^"]+)"/)[1];
+    assert.ok(ids.has(destination), `destination ${destination} exists`);
+    assert.ok(!link.includes('target="_blank"'), "footnotes stay in the document");
+  }
+  const label = html.match(/<h2\b[^>]*id="([^"]+)"[^>]*class="[^"]*sr-only[^>]*>/);
+  assert.ok(label, "the footnote heading keeps its accessible ID and hidden styling");
+  assert.ok(html.includes(`aria-describedby="${label[1]}"`));
+  assert.ok(html.includes("data-footnote-ref"));
+  assert.ok(html.includes("data-footnote-backref"));
+  assert.ok(html.includes('aria-label="Back to reference'));
+});
+
+test("separate messages with the same footnote label have distinct destinations", async (t) => {
+  const content = "Claim.[^source]\n\n[^source]: Evidence.";
+  const html = await renderMarkdown(t, [content, content]);
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+
+  assert.equal(ids.length, 6, "each message has a reference, definition and heading ID");
+  assert.equal(new Set(ids).size, ids.length, "messages never share a destination ID");
+});
+
+test("external links still open separately with safe relationship attributes", async (t) => {
+  const html = await renderMarkdown(t, "[Website](https://openwhispr.com)");
+  assert.ok(html.includes('href="https://openwhispr.com"'));
+  assert.ok(html.includes('target="_blank"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+});
 
 test("a GFM table renders as a real table, not literal pipes", async (t) => {
   const html = await renderMarkdown(t, TABLE_MARKDOWN);
@@ -57,14 +101,22 @@ test("Markdown component types stay stable across streaming and parent rerenders
     cachePrefix: "openwhispr-markdown-reconciliation-test-",
   });
   const { MarkdownRenderer } = await vite.ssrLoadModule("/components/ui/MarkdownRenderer.tsx");
-  const initial = MarkdownRenderer({ content: TABLE_MARKDOWN }).props.children.props.components;
+  let components;
+  function InspectMarkdown(props) {
+    const element = MarkdownRenderer(props);
+    components = element.props.children.props.children.props.components;
+    return element;
+  }
+  renderToStaticMarkup(createElement(InspectMarkdown, { content: TABLE_MARKDOWN }));
+  const initial = components;
 
   for (const props of [
     { content: TABLE_MARKDOWN },
     { content: `${TABLE_MARKDOWN}\nMore streamed text.` },
     { content: TABLE_MARKDOWN, className: "text-sm" },
   ]) {
-    const updated = MarkdownRenderer(props).props.children.props.components;
+    renderToStaticMarkup(createElement(InspectMarkdown, props));
+    const updated = components;
     // A changed ancestor type also remounts nested tables and loses their scroll position.
     for (const tag of Object.keys(initial)) {
       assert.equal(updated[tag], initial[tag], `${tag} must reconcile instead of remounting`);

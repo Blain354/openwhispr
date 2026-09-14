@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { createContext, useContext, useId, type ReactElement } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -7,14 +7,24 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+const FootnotePrefixContext = createContext("");
+
 // Stable component types preserve DOM state, including table scroll positions.
 const markdownComponents: Components = {
   h1: ({ children }): ReactElement => (
     <h1 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h1>
   ),
-  h2: ({ children }): ReactElement => (
-    <h2 className="text-base font-semibold mb-2 mt-3 first:mt-0">{children}</h2>
-  ),
+  h2: function MarkdownHeading({ children, id, className }): ReactElement {
+    const prefix = useContext(FootnotePrefixContext);
+    return (
+      <h2
+        id={id === "footnote-label" ? `${prefix}footnote-label` : id}
+        className={className ?? "text-base font-semibold mb-2 mt-3 first:mt-0"}
+      >
+        {children}
+      </h2>
+    );
+  },
   h3: ({ children }): ReactElement => (
     <h3 className="text-sm font-semibold mb-1.5 mt-2 first:mt-0">{children}</h3>
   ),
@@ -23,17 +33,27 @@ const markdownComponents: Components = {
   ol: ({ children }): ReactElement => (
     <ol className="list-decimal ps-4 mb-2 space-y-1">{children}</ol>
   ),
-  li: ({ children }): ReactElement => <li className="ps-1">{children}</li>,
-  a: ({ href, children }): ReactElement => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-link underline decoration-link/30 hover:decoration-link/60 transition-colors"
-    >
+  li: ({ children, id }): ReactElement => (
+    <li id={id} className="ps-1">
       {children}
-    </a>
+    </li>
   ),
+  a: function MarkdownLink({ node: _node, ...props }): ReactElement {
+    const prefix = useContext(FootnotePrefixContext);
+    return (
+      <a
+        {...props}
+        aria-describedby={
+          props["aria-describedby"] === "footnote-label"
+            ? `${prefix}footnote-label`
+            : props["aria-describedby"]
+        }
+        target={props.href?.startsWith("#") ? undefined : "_blank"}
+        rel="noopener noreferrer"
+        className="text-link underline decoration-link/30 hover:decoration-link/60 transition-colors"
+      />
+    );
+  },
   code: ({ children }): ReactElement => (
     <code dir="ltr" className="bg-black/10 px-1 py-0.5 rounded text-xs font-mono">
       {children}
@@ -75,11 +95,18 @@ const markdownComponents: Components = {
 };
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps): ReactElement {
+  const footnotePrefix = `user-content-${useId()}-`;
   return (
     <div dir="auto" className={className}>
-      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-        {content}
-      </Markdown>
+      <FootnotePrefixContext value={footnotePrefix}>
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          remarkRehypeOptions={{ clobberPrefix: footnotePrefix }}
+          components={markdownComponents}
+        >
+          {content}
+        </Markdown>
+      </FootnotePrefixContext>
     </div>
   );
 }
