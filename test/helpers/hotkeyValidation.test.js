@@ -272,8 +272,9 @@ test("the Linux default hotkey carries a regular key so it can Hold", async () =
 test("the Voice Agent default is a real key chord that cannot pre-empt dictation and is not reserved", async () => {
   const { isModifierOnlyHotkey } = require("../../src/helpers/hotkeyManager");
   const { validateHotkey } = await load();
-  const { getDefaultHotkey, getDefaultVoiceAgentHotkey } =
-    await import("../../src/utils/hotkeys.ts");
+  const { getDefaultHotkey } = await import("../../src/utils/hotkeys.ts");
+  const { getDefaultAssistantOnboardingHotkey } =
+    await import("../../src/components/onboarding/hotkeyPresentation.ts");
 
   const withPlatform = (platform, run) => {
     const had = "window" in globalThis;
@@ -288,11 +289,11 @@ test("the Voice Agent default is a real key chord that cannot pre-empt dictation
   };
 
   // Windows: Alt+Super+Space (Win+Alt+Space). Chosen from research, not taste —
-  // see the decision record linked from getDefaultVoiceAgentHotkey. It must
-  // carry a regular key, and must not contain every modifier of the dictation
-  // default: a modifier-only chord fires the instant its modifiers are down,
-  // so any superset of Control+Super would start dictation first.
-  const winAgent = withPlatform("win32", getDefaultVoiceAgentHotkey);
+  // see the decision record linked from getDefaultAssistantOnboardingHotkey. It
+  // must carry a regular key, and must not contain every modifier of the
+  // dictation default: a modifier-only chord fires the instant its modifiers
+  // are down, so any superset of Control+Super would start dictation first.
+  const winAgent = getDefaultAssistantOnboardingHotkey("win32");
   const winDictation = withPlatform("win32", getDefaultHotkey);
   assert.equal(winAgent, "Alt+Super+Space");
   assert.equal(isModifierOnlyHotkey(winAgent), false);
@@ -304,7 +305,7 @@ test("the Voice Agent default is a real key chord that cannot pre-empt dictation
   assert.equal(validateHotkey(winAgent, "win32").valid, true);
 
   // macOS and Linux keep the long-standing onboarding suggestion.
-  assert.equal(withPlatform("darwin", getDefaultVoiceAgentHotkey), "CommandOrControl+Shift+Space");
-  assert.equal(withPlatform("linux", getDefaultVoiceAgentHotkey), "CommandOrControl+Shift+Space");
-  assert.equal(isModifierOnlyHotkey(withPlatform("linux", getDefaultVoiceAgentHotkey)), false);
+  assert.equal(getDefaultAssistantOnboardingHotkey("darwin"), "CommandOrControl+Shift+Space");
+  assert.equal(getDefaultAssistantOnboardingHotkey("linux"), "CommandOrControl+Shift+Space");
+  assert.equal(isModifierOnlyHotkey(getDefaultAssistantOnboardingHotkey("linux")), false);
 });

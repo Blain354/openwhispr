@@ -140,9 +140,10 @@ const withPlatform = (platform, run) => {
 };
 
 async function platformDefaults(platform) {
-  const { getDefaultHotkey, getDefaultVoiceAgentHotkey } =
-    await import("../../src/utils/hotkeys.ts");
-  return withPlatform(platform, () => [getDefaultHotkey(), getDefaultVoiceAgentHotkey()]);
+  const { getDefaultHotkey } = await import("../../src/utils/hotkeys.ts");
+  const { getDefaultAssistantOnboardingHotkey } =
+    await import("../../src/components/onboarding/hotkeyPresentation.ts");
+  return [withPlatform(platform, getDefaultHotkey), getDefaultAssistantOnboardingHotkey(platform)];
 }
 
 function assertVocabulary(parse, names, label) {

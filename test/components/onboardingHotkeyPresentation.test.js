@@ -61,10 +61,32 @@ test("the dictation step never opens on a chord that would overwrite the user's 
   assert.equal(onMac("GLOBE", true), "GLOBE");
 });
 
-test("the assistant step keeps a saved chord and otherwise offers the platform's Voice Agent default", async () => {
-  const { resolveOnboardingAssistantHotkey, formatRecommendedHotkey } = await load();
-  const { getDefaultVoiceAgentHotkey } = await import("../../src/utils/hotkeys.ts");
+test("the assistant step keeps a saved chord and otherwise offers onboarding's Voice Agent preset", async () => {
+  const {
+    getDefaultAssistantOnboardingHotkey,
+    resolveOnboardingAssistantHotkey,
+    formatRecommendedHotkey,
+  } = await load();
 
+  // The preset is onboarding's to own: nothing in main or Settings registers a
+  // Voice Agent chord, so this module is the only place it is ever applied.
+  // Windows takes Win+Alt+Space from the researched candidate table; macOS and
+  // Linux keep the long-standing suggestion.
+  assert.equal(getDefaultAssistantOnboardingHotkey("win32"), "Alt+Super+Space");
+  assert.equal(getDefaultAssistantOnboardingHotkey("darwin"), "CommandOrControl+Shift+Space");
+  assert.equal(getDefaultAssistantOnboardingHotkey("linux"), "CommandOrControl+Shift+Space");
+
+  for (const platform of ["darwin", "win32", "linux"]) {
+    const preset = getDefaultAssistantOnboardingHotkey(platform);
+    // Nothing auto-registers voiceAgentKey, so anything saved is the user's own
+    // pick and nothing may substitute for it.
+    assert.equal(resolveOnboardingAssistantHotkey(platform, "Alt+Space"), "Alt+Space", platform);
+    assert.equal(resolveOnboardingAssistantHotkey(platform, preset), preset, platform);
+    // An empty slot opens on the preset.
+    assert.equal(resolveOnboardingAssistantHotkey(platform, ""), preset, platform);
+  }
+
+  // The label follows the platform's modifier names.
   const withPlatform = (platform, run) => {
     const had = "window" in globalThis;
     const previous = globalThis.window;
@@ -76,27 +98,17 @@ test("the assistant step keeps a saved chord and otherwise offers the platform's
       else delete globalThis.window;
     }
   };
-
-  // Nothing auto-registers voiceAgentKey, so anything saved is the user's own
-  // pick and nothing may substitute for it.
-  assert.equal(resolveOnboardingAssistantHotkey("Alt+Space"), "Alt+Space");
-
-  // An empty slot opens on the platform default — the one place it is applied.
-  for (const platform of ["darwin", "win32", "linux"]) {
-    withPlatform(platform, () => {
-      const expected = getDefaultVoiceAgentHotkey();
-      assert.equal(resolveOnboardingAssistantHotkey(""), expected, platform);
-      assert.equal(resolveOnboardingAssistantHotkey(expected), expected, platform);
-    });
-  }
   withPlatform("darwin", () =>
     assert.equal(
-      formatRecommendedHotkey(resolveOnboardingAssistantHotkey("")),
+      formatRecommendedHotkey(getDefaultAssistantOnboardingHotkey("darwin")),
       "Cmd + Shift + Space"
     )
   );
   withPlatform("win32", () =>
-    assert.equal(formatRecommendedHotkey(resolveOnboardingAssistantHotkey("")), "Alt + Win + Space")
+    assert.equal(
+      formatRecommendedHotkey(getDefaultAssistantOnboardingHotkey("win32")),
+      "Alt + Win + Space"
+    )
   );
 });
 
