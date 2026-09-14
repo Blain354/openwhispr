@@ -104,4 +104,89 @@ test("a literal placeholder sequence in the input survives the restore step", as
   // it arrived rather than as "undefined".
   const answer = "text with \u{E000}0\u{E001} literal";
   assert.equal(markdownToPlainText(answer), answer);
+  assert.equal(markdownToPlainText(`${answer} and \`__init__\``), `${answer} and __init__`);
+});
+
+test("URLs keep their literal destinations while surrounding emphasis is removed", async () => {
+  const { markdownToPlainText } = await helperModule;
+  const url = "https://github.com/acme/service/blob/main/pkg/__init__.py";
+  assert.equal(markdownToPlainText(`Open ${url}`), `Open ${url}`);
+  assert.equal(markdownToPlainText(`[**Source**](${url})`), `Source (${url})`);
+  assert.equal(markdownToPlainText(`[${url}](${url})`), url);
+  assert.equal(markdownToPlainText(`**${url}**`), url);
+  assert.equal(markdownToPlainText(`_${url}_.`), `${url}.`);
+  assert.equal(markdownToPlainText("[module](../pkg/__init__.py)"), "module (../pkg/__init__.py)");
+});
+
+test("plain Windows paths survive alongside ordinary markdown and escapes", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const path of [
+    String.raw`\\fileserver\finance\budget.xlsx`,
+    String.raw`C:\_archive\report.txt`,
+  ]) {
+    assert.equal(markdownToPlainText(`Open ${path}.`), `Open ${path}.`);
+    assert.equal(markdownToPlainText(`**${path}** and **read** it.`), `${path} and read it.`);
+    assert.equal(markdownToPlainText(`_${path}_`), path);
+  }
+  assert.equal(markdownToPlainText(String.raw`\*literal\*`), "*literal*");
+});
+
+test("emphasis can enclose prose and literal resources together", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const resource of ["https://example.com/__init__.py", String.raw`C:\_archive\report.txt`]) {
+    for (const marker of ["**", "*", "__", "_", "~~"]) {
+      assert.equal(markdownToPlainText(`${marker}Open ${resource}${marker}`), `Open ${resource}`);
+      assert.equal(markdownToPlainText(`(${marker}${resource}${marker}).`), `(${resource}).`);
+    }
+  }
+  const plain = "snake_case https://example.com/trailing_";
+  assert.equal(markdownToPlainText(plain), plain);
+  assert.equal(
+    markdownToPlainText("https://example.com/trailing_ then _https://example.com/__init__.py_"),
+    "https://example.com/trailing_ then https://example.com/__init__.py"
+  );
+});
+
+test("Windows directories with spaces and quoted filenames remain literal", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const path of [
+    String.raw`C:\My Documents\_archive\report.txt`,
+    String.raw`\\fileserver\Shared Documents\_archive\report.txt`,
+  ]) {
+    assert.equal(markdownToPlainText(`Open ${path} and **read** it.`), `Open ${path} and read it.`);
+  }
+  const quoted = String.raw`"C:\My Documents\report _draft_.txt"`;
+  assert.equal(
+    markdownToPlainText(`Open ${quoted} and **read** it.`),
+    `Open ${quoted} and read it.`
+  );
+  assert.equal(
+    markdownToPlainText(String.raw`C:\report.txt and __read__ \*literal\*`),
+    String.raw`C:\report.txt and read *literal*`
+  );
+  assert.equal(
+    markdownToPlainText(String.raw`C:\report.txt and __read__ \_literal\_`),
+    String.raw`C:\report.txt and read _literal_`
+  );
+});
+
+test("only a matching closing fence ends literal code", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const opening of ["````markdown", "~~~~markdown"]) {
+    const marker = opening[0];
+    const body = ["```js", 'const label = "**draft**";', "```", "~~~", `${marker.repeat(4)} text`];
+    const answer = ["Example:", opening, ...body, marker.repeat(5), "**Done.**"].join("\n");
+    assert.equal(markdownToPlainText(answer), ["Example:", ...body, "Done."].join("\n"));
+  }
+});
+
+test("escaped table pipes remain inside their cell and preserve empty cells", async () => {
+  const { markdownToPlainText } = await helperModule;
+  assert.equal(
+    markdownToPlainText("| Choice | Meaning |\n| --- | --- |\n| A \\| B | either choice |"),
+    "Choice\tMeaning\nA | B\teither choice"
+  );
+  assert.equal(markdownToPlainText(String.raw`| A\\| B |`), "A\\\tB");
+  assert.equal(markdownToPlainText(String.raw`| A\\\|B | C |`), "A\\|B\tC");
+  assert.equal(markdownToPlainText("| A | | C |"), "A\t\tC");
 });

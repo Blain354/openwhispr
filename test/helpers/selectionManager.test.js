@@ -901,3 +901,74 @@ test("a successful paste logs no decline and one debug line carrying the markdow
   assert.ok("targetSignature" in successes[0].meta);
   assert.equal(successes[0].meta.targetSignature, null);
 });
+
+test("captured app identity controls literal-safe delivery through paste and changed-target fallback", async () => {
+  const { createAssistantResponseDelivery, deliverAssistantResponse } =
+    await import("../../src/helpers/assistantResponseDelivery.ts");
+  const content = [
+    "[**Source**](https://example.com/pkg/__init__.py)",
+    String.raw`Open \\fileserver\finance\budget.xlsx and C:\_archive\report.txt.`,
+    "````markdown",
+    "```js",
+    'const label = "**draft**";',
+    "```",
+    "````",
+    "| Choice | Meaning |",
+    "| --- | --- |",
+    "| A \\| B | either choice |",
+  ].join("\n");
+  const plainText = [
+    "Source (https://example.com/pkg/__init__.py)",
+    String.raw`Open \\fileserver\finance\budget.xlsx and C:\_archive\report.txt.`,
+    "```js",
+    'const label = "**draft**";',
+    "```",
+    "Choice\tMeaning",
+    "A | B\teither choice",
+  ].join("\n");
+
+  for (const app of ["TextEdit", "Obsidian"]) {
+    for (const targetChanged of [false, true]) {
+      const { manager, pastes } = makeHarness({
+        selections: [
+          { state: "none", editable: true },
+          targetChanged
+            ? { state: "selected", text: "new selection" }
+            : { state: "none", editable: true },
+        ],
+      });
+      manager._readExecutablePath = async () => `/Applications/${app}.app/Contents/MacOS/${app}`;
+      const capture = await manager.captureSelectedText({ probeEditable: true });
+      const delivery = createAssistantResponseDelivery({
+        autoPasteEnabled: true,
+        deliverySessionId: capture.sessionId,
+        acceptsMarkdown: capture.acceptsMarkdown,
+        restoreClipboard: true,
+        allowClipboardFallback: false,
+      });
+      const writes = [];
+      const result = await deliverAssistantResponse(delivery, content, {
+        electronAPI: {
+          pasteAtCapturedTarget: manager.pasteAtCapturedTarget.bind(manager),
+          async writeClipboard(text) {
+            writes.push(text);
+            return { success: true };
+          },
+        },
+        clipboard: {
+          async writeText() {
+            assert.fail("native clipboard write should succeed");
+          },
+        },
+      });
+      const expected = app === "Obsidian" ? content : plainText;
+      assert.deepEqual(result, { pasted: !targetChanged, copied: targetChanged });
+      assert.deepEqual(
+        pastes.map((paste) => paste.text),
+        targetChanged ? [] : [expected]
+      );
+      assert.deepEqual(writes, targetChanged ? [expected] : []);
+      assert.equal(manager.sessions.has(capture.sessionId), false);
+    }
+  }
+});

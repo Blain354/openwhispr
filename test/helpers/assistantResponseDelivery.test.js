@@ -148,3 +148,67 @@ test("a clipboard-only delivery keeps the response verbatim", async () => {
   await deliverAssistantResponse({ mode: "clipboard" }, MARKDOWN_RESPONSE, dependencies);
   assert.deepEqual(writes, [MARKDOWN_RESPONSE]);
 });
+
+const LITERAL_CONTENT_CASES = [
+  {
+    name: "URL destinations",
+    content: "[**Source**](https://example.com/pkg/__init__.py)",
+    plainText: "Source (https://example.com/pkg/__init__.py)",
+  },
+  {
+    name: "Windows paths",
+    content: [
+      String.raw`Open \\fileserver\finance\budget.xlsx and C:\_archive\report.txt.`,
+      String.raw`**Read** C:\My Documents\_archive\report.txt.`,
+    ].join("\n"),
+    plainText: [
+      String.raw`Open \\fileserver\finance\budget.xlsx and C:\_archive\report.txt.`,
+      String.raw`Read C:\My Documents\_archive\report.txt.`,
+    ].join("\n"),
+  },
+  {
+    name: "nested code fences",
+    content: ["````markdown", "```js", 'const label = "**draft**";', "```", "````"].join("\n"),
+    plainText: ["```js", 'const label = "**draft**";', "```"].join("\n"),
+  },
+  {
+    name: "escaped table pipes",
+    content: "| Choice | Meaning |\n| --- | --- |\n| A \\| B | either choice |",
+    plainText: "Choice\tMeaning\nA | B\teither choice",
+  },
+];
+
+for (const example of LITERAL_CONTENT_CASES) {
+  for (const pasteSuccess of [true, false]) {
+    test(`${example.name} survive ${pasteSuccess ? "paste" : "clipboard fallback"}`, async () => {
+      const { createAssistantResponseDelivery, deliverAssistantResponse } = await deliveryModule;
+      for (const acceptsMarkdown of [false, true]) {
+        const { dependencies, pastes, writes } = createDeliveryHarness(pasteSuccess);
+        const delivery = createAssistantResponseDelivery({
+          autoPasteEnabled: true,
+          deliverySessionId: "caret-session",
+          acceptsMarkdown,
+          ...PASTE_OPTIONS,
+        });
+        const expected = acceptsMarkdown ? example.content : example.plainText;
+
+        assert.deepEqual(await deliverAssistantResponse(delivery, example.content, dependencies), {
+          pasted: pasteSuccess,
+          copied: !pasteSuccess,
+        });
+        assert.deepEqual(pastes, [
+          { sessionId: "caret-session", text: expected, options: PASTE_OPTIONS },
+        ]);
+        assert.deepEqual(writes, pasteSuccess ? [] : [expected]);
+      }
+    });
+  }
+
+  test(`${example.name} stay verbatim for clipboard-only delivery`, async () => {
+    const { deliverAssistantResponse } = await deliveryModule;
+    const { dependencies, pastes, writes } = createDeliveryHarness(false);
+    await deliverAssistantResponse({ mode: "clipboard" }, example.content, dependencies);
+    assert.deepEqual(pastes, []);
+    assert.deepEqual(writes, [example.content]);
+  });
+}
