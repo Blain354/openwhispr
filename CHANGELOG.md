@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Dictionary
 
-- **Import your Dragon vocabulary.** Dictionary → Import → Import from Dragon takes the list Dragon writes from Vocabulary → Export custom word and phrase list (TXT, or the Windows XML) and adds every custom word to your dictionary after a preview of what's new. Words with a spoken form are imported by their written form; words already present are skipped rather than duplicated, and the file's formatting properties are left behind. (#PR)
+- **Import your Dragon vocabulary.** Dictionary → Import → Import from Dragon takes the list Dragon writes from Vocabulary → Export custom word and phrase list (TXT, or the Windows XML) and adds every custom word to your dictionary after a preview of what's new. Words with a spoken form are imported by their written form; words already present are skipped rather than duplicated, and the file's formatting properties are left behind. (#2190)
 
 ### Transcription
 
