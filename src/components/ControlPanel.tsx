@@ -15,6 +15,8 @@ import { useUpdater } from "../hooks/useUpdater";
 import { useSettings } from "../hooks/useSettings";
 import { useAuth } from "../hooks/useAuth";
 import { useJoinableWorkspaces } from "../hooks/useJoinableWorkspaces";
+import { useWorkspace } from "../hooks/useWorkspace";
+import { manageableWorkspaces, selectWorkspaceForSpaceCreation } from "../lib/workspaceSelection";
 import { useUsage } from "../hooks/useUsage";
 import { decideUpsell } from "../lib/upsell";
 import { useCollapsibleSidebar } from "../hooks/useCollapsibleSidebar";
@@ -92,6 +94,7 @@ const SEMANTIC_REINDEX_VERSION = 2;
 
 const SettingsModal = React.lazy(() => import("./SettingsModal"));
 const ReferralModal = React.lazy(() => import("./ReferralModal"));
+const InviteTeammateDialog = React.lazy(() => import("./InviteTeammateDialog"));
 const PersonalNotesView = React.lazy(() => import("./notes/PersonalNotesView"));
 const InsightsView = React.lazy(() => import("./InsightsView"));
 const DictionaryView = React.lazy(() => import("./DictionaryView"));
@@ -121,6 +124,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
     () => localStorage.getItem("aiCTADismissed") === "true"
   );
   const [showReferrals, setShowReferrals] = useState(false);
+  const [showInviteTeam, setShowInviteTeam] = useState(false);
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [invitationNotesEntry, setInvitationNotesEntry] = useState<{
     workspaceId: string;
@@ -150,6 +154,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
     folderId: number;
     event: any;
   } | null>(null);
+  const [topBarActions, setTopBarActions] = useState<HTMLDivElement | null>(null);
   const [gpuBannerDismissed, setGpuBannerDismissed] = useState(
     () => localStorage.getItem("gpuBannerDismissedUnified") === "true"
   );
@@ -164,6 +169,14 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
     dismiss: dismissJoinable,
     markRequested,
   } = useJoinableWorkspaces(user?.id ?? null, isSignedIn && !invitationToken);
+  const { workspaces, active: activeWorkspace } = useWorkspace();
+  // Invitations are owner/admin-only (server-enforced), so the sidebar row
+  // only exists when the user can manage a workspace.
+  const inviteWorkspace = selectWorkspaceForSpaceCreation(
+    manageableWorkspaces(workspaces),
+    activeWorkspace,
+    null
+  );
   const usage = useUsage();
   const upsell = decideUpsell({
     authLoaded,
@@ -897,6 +910,17 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
         </Suspense>
       )}
 
+      {showInviteTeam && inviteWorkspace && (
+        <Suspense fallback={null}>
+          <InviteTeammateDialog
+            open={showInviteTeam}
+            onOpenChange={setShowInviteTeam}
+            workspaceId={inviteWorkspace.id}
+            workspaceName={inviteWorkspace.name}
+          />
+        </Suspense>
+      )}
+
       <AcceptInvitationModal
         token={invitationToken}
         onClose={() => setInvitationToken(null)}
@@ -962,6 +986,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
               setShowSettings(true);
             }}
             onOpenReferrals={() => setShowReferrals(true)}
+            onInviteTeam={inviteWorkspace ? () => setShowInviteTeam(true) : undefined}
             onUpgrade={() => {
               setSettingsSection("plansBilling");
               setShowSettings(true);
@@ -1003,6 +1028,7 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
               onOpenSearch={() => setShowSearch(true)}
               isSidePanelLayout={isSidePanelLayout}
               onExitSidePanel={handleExitSidePanel}
+              actionsSlotRef={setTopBarActions}
             />
             <div className="scrollbar-hidden flex-1 overflow-y-auto">
               {updateRequiredByOrg && (
@@ -1159,6 +1185,8 @@ export default function ControlPanel({ initialSettingsSection }: ControlPanelPro
                     onMeetingRecordingRequestHandled={handleMeetingRecordingRequestHandled}
                     invitationEntry={invitationNotesEntry}
                     onInvitationEntryHandled={() => setInvitationNotesEntry(null)}
+                    topBarActions={topBarActions}
+                    onNewChat={agentAllowedByPolicy ? () => setActiveView("chat") : undefined}
                   />
                 </Suspense>
               )}
