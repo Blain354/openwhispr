@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "../icons";
 import { useTranslation } from "react-i18next";
 import { HotkeyKeycaps } from "../ui/HotkeyKeycaps";
 import { TipCardShell } from "./TipCardShell";

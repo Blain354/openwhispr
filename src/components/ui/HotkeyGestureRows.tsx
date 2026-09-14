@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Hand, Zap } from "lucide-react";
+import { MicVocal, Zap } from "../icons";
 import { useTranslation } from "react-i18next";
 import { useHotkeyModeInfo } from "../../hooks/useHotkeyModeInfo";
 import { parseHotkeyList } from "../../utils/hotkeys";
@@ -101,7 +101,7 @@ export function HotkeyGestureRows({ slot, hotkey, mode }: HotkeyGestureRowsProps
         tokens={
           <>
             <VerbChip
-              icon={<Hand className="size-3" aria-hidden="true" />}
+              icon={<MicVocal className="size-3" aria-hidden="true" />}
               label={t("common.hold")}
             />
             {plus}

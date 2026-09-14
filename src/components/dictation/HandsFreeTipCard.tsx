@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Zap } from "../icons";
 import { useTranslation } from "react-i18next";
 import { HotkeyKeycaps } from "../ui/HotkeyKeycaps";
 import { TipCardShell } from "./TipCardShell";
