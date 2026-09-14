@@ -150,6 +150,18 @@ test("parseDragonWordList flags word properties it cannot map", async () => {
   assert.deepEqual(r.warnings, [{ code: "XML_PROPERTIES_IGNORED" }]);
 });
 
+test("parseDragonWordList decodes numeric entities and leaves an out-of-range reference literal", async () => {
+  const { parseDragonWordList } = await load();
+  const xml =
+    '<?xml version="1.0"?><WordExport>' +
+    '<Word name="caf&#233; &#xE9;"></Word>' +
+    '<Word name="bad &#1114112; word"></Word>' +
+    "</WordExport>";
+  const r = parseDragonWordList(xml);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.words, ["café é", "bad &#1114112; word"]);
+});
+
 test("parseDragonWordList refuses XML that is not a Windows Dragon export", async () => {
   const { parseDragonWordList } = await load();
   const mac = '<?xml version="1.0"?><vocabulary><item written="x" spoken="y"/></vocabulary>';

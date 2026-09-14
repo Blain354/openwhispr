@@ -23,6 +23,7 @@ function decodeEntities(value) {
     if (ref[0] !== "#") return XML_ENTITIES[ref.toLowerCase()];
     const code =
       ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+    if (!Number.isFinite(code) || code > 0x10ffff) return _m;
     return String.fromCodePoint(code);
   });
 }
