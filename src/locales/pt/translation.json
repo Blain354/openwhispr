@@ -1879,12 +1879,12 @@
         "hyprlandConfigWriteWarningDescription": "O OpenWhispr não consegue escrever em {{path}}, por isso os atalhos não serão mantidos após recarregar a configuração do Hyprland. Verifique se o ficheiro existe e permite escrita.",
         "hyprlandUnbindDescription": "No Hyprland, o OpenWhispr reserva o atalho selecionado. Qualquer atalho existente do Hyprland que use a mesma combinação de teclas será desvinculado quando o OpenWhispr registar o atalho.",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "Segure para falar",
+          "holdDetail": "Solte para finalizar",
+          "handsFreeTitle": "Mãos-livres",
+          "handsFreeDetail": "Pressione novamente para parar",
+          "doublePress": "Toque duas vezes",
+          "tapOnlyTitle": "Pressione para iniciar e novamente para parar"
         }
       },
       "meetingHotkey": {
@@ -3577,10 +3577,10 @@
       "description": "Toque duas vezes em {{hotkey}} para iniciar o modo mãos-livres."
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "Novidade nesta atualização",
+      "title": "Segure para falar, solte para finalizar",
+      "description": "Mudamos a forma como seu atalho funciona: segure {{hotkey}} enquanto fala.",
+      "gesture": "Toque duas vezes para o modo mãos-livres e pressione novamente para parar."
     }
   },
   "dictationAgent": {

@@ -1900,12 +1900,12 @@
         "hyprlandConfigWriteWarningDescription": "OpenWhispr 無法寫入 {{path}}，因此重新載入 Hyprland 設定後按鍵綁定不會保留。請確認該檔案存在且可寫入。",
         "hyprlandUnbindDescription": "在 Hyprland 上，OpenWhispr 會佔用所選快捷鍵。當 OpenWhispr 註冊該快捷鍵時，任何使用相同按鍵組合的既有 Hyprland 綁定都會被解除。",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "按住說話",
+          "holdDetail": "放開即結束",
+          "handsFreeTitle": "免持模式",
+          "handsFreeDetail": "再按一次停止",
+          "doublePress": "連按兩次",
+          "tapOnlyTitle": "按一下開始，再按一次停止"
         }
       },
       "meetingHotkey": {
@@ -3577,10 +3577,10 @@
       "description": "連按兩次 {{hotkey}} 即可開始免持模式。"
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "本次更新的新功能",
+      "title": "按住說話，放開即結束",
+      "description": "我們調整了快捷鍵的運作方式：說話時請按住 {{hotkey}} 不放。",
+      "gesture": "連按兩次即可開始免持模式，再按一次停止。"
     }
   },
   "dictationAgent": {

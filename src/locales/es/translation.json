@@ -1953,12 +1953,12 @@
         "hyprlandConfigWriteWarningDescription": "OpenWhispr no puede escribir en {{path}}, así que los atajos no sobrevivirán a una recarga de la configuración de Hyprland. Asegúrate de que el archivo exista y se pueda escribir.",
         "hyprlandUnbindDescription": "En Hyprland, OpenWhispr reserva el atajo seleccionado. Cualquier atajo existente de Hyprland que use la misma combinación de teclas se desvinculará cuando OpenWhispr registre su atajo.",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "Mantén pulsado para hablar",
+          "holdDetail": "Suelta para terminar",
+          "handsFreeTitle": "Manos libres",
+          "handsFreeDetail": "Pulsa otra vez para detener",
+          "doublePress": "Pulsar dos veces",
+          "tapOnlyTitle": "Pulsa para iniciar y otra vez para detener"
         }
       },
       "meetingHotkey": {
@@ -3630,10 +3630,10 @@
       "description": "Pulsa {{hotkey}} dos veces para iniciar el modo manos libres."
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "Novedad de esta actualización",
+      "title": "Mantén pulsado para hablar, suelta para terminar",
+      "description": "Hemos cambiado cómo funciona tu atajo: mantén pulsado {{hotkey}} mientras hablas.",
+      "gesture": "Púlsalo dos veces para el modo manos libres y pulsa otra vez para detener."
     }
   },
   "dictationAgent": {

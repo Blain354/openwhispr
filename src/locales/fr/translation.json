@@ -2193,12 +2193,12 @@
         "hyprlandConfigWriteWarningDescription": "OpenWhispr ne peut pas écrire dans {{path}} ; les raccourcis ne survivront donc pas à un rechargement de la configuration Hyprland. Vérifiez que le fichier existe et qu'il est accessible en écriture.",
         "hyprlandUnbindDescription": "Sous Hyprland, OpenWhispr réserve le raccourci sélectionné. Tout raccourci Hyprland existant utilisant la même combinaison de touches sera supprimé quand OpenWhispr enregistrera son raccourci.",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "Maintenir pour parler",
+          "holdDetail": "Relâcher pour terminer",
+          "handsFreeTitle": "Mains libres",
+          "handsFreeDetail": "Appuyer à nouveau pour arrêter",
+          "doublePress": "Double appui",
+          "tapOnlyTitle": "Appuyer pour démarrer, appuyer à nouveau pour arrêter"
         }
       },
       "meetingHotkey": {
@@ -3746,10 +3746,10 @@
       "description": "Appuyez deux fois sur {{hotkey}} pour démarrer le mode mains libres."
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "Nouveau dans cette mise à jour",
+      "title": "Maintenir pour parler, relâcher pour terminer",
+      "description": "Nous avons modifié le fonctionnement de votre raccourci : maintenez {{hotkey}} pendant que vous parlez.",
+      "gesture": "Appuyez deux fois dessus pour le mode mains libres, appuyez à nouveau pour arrêter."
     }
   },
   "dictationAgent": {

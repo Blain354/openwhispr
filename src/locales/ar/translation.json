@@ -92,7 +92,7 @@
       },
       "messages": {
         "nowUsing": "يتم الآن استخدام {{hotkey}} للإملاء",
-        "holdSwitchedToTap": "Hold isn't available for {{hotkey}} on this device, so activation switched to Tap."
+        "holdSwitchedToTap": "وضع «استمرار الضغط» غير متاح لـ {{hotkey}} على هذا الجهاز، لذا تم تبديل التنشيط إلى «نقر»."
       }
     },
     "modelDownload": {
@@ -1363,15 +1363,15 @@
       "startMeetingRecording": "بدء تسجيل الاجتماع"
     },
     "handsFreeTip": {
-      "badge": "Tip",
-      "title": "Switch to hands-free mode",
-      "description": "Double tap {{hotkey}} to start hands-free mode."
+      "badge": "نصيحة",
+      "title": "التبديل إلى وضع بدون استخدام اليدين",
+      "description": "اضغط ضغطة مزدوجة على {{hotkey}} لبدء الوضع بدون استخدام اليدين."
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "جديد في هذا التحديث",
+      "title": "اضغط مع الاستمرار للتحدث، وأفلت المفتاح للإنهاء",
+      "description": "غيّرنا طريقة عمل الاختصار لديك: اضغط مع الاستمرار على {{hotkey}} أثناء التحدث.",
+      "gesture": "اضغط عليه ضغطة مزدوجة لبدء الوضع بدون استخدام اليدين، واضغط مرة أخرى للإيقاف."
     }
   },
   "calendar": {
@@ -2961,12 +2961,12 @@
         "hyprlandConfigWriteWarningDescription": "لا يمكن لـ OpenWhispr الكتابة إلى {{path}}، لذلك لن تبقى الاختصارات بعد إعادة تحميل تكوين Hyprland. تأكد من وجود الملف وقابليته للكتابة.",
         "hyprlandUnbindDescription": "في Hyprland، يستحوذ OpenWhispr على الاختصار المحدد. سيتم فك أي ارتباط Hyprland موجود يستخدم مجموعة المفاتيح نفسها عندما يسجل OpenWhispr اختصاره.",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "اضغط مع الاستمرار للتحدث",
+          "holdDetail": "أفلت المفتاح للإنهاء",
+          "handsFreeTitle": "بدون استخدام اليدين",
+          "handsFreeDetail": "اضغط مرة أخرى للإيقاف",
+          "doublePress": "ضغطة مزدوجة",
+          "tapOnlyTitle": "اضغط للبدء، واضغط مرة أخرى للإيقاف"
         }
       },
       "meetingHotkey": {
@@ -3543,13 +3543,13 @@
       "updateFailedCheckFormat": "فشل تحديث الاختصار إلى \"{{hotkey}}\". تأكد من أن التنسيق صالح.",
       "trySuggestions": "جرّب: {{suggestions}}",
       "slotConflict": "هذا الاختصار مستخدم بالفعل لـ {{slot}}.",
-      "holdNeedsRegularKey": "\"{{hotkey}}\" has no regular key, so your desktop cannot tell when you release it. Try {{suggestion}}.",
-      "holdUnsupportedOnDesktop": "Your desktop cannot report when a key is released. Hold to speak needs GNOME 48 or newer, KDE Plasma, or an X11 session.",
-      "holdUnsupportedOnHyprland": "On Hyprland, Hold is only available for the dictation hotkey."
+      "holdNeedsRegularKey": "\"{{hotkey}}\" لا يحتوي على مفتاح عادي، لذا لا يمكن لسطح المكتب لديك معرفة وقت إفلاته. جرّب {{suggestion}}.",
+      "holdUnsupportedOnDesktop": "لا يمكن لسطح المكتب لديك الإبلاغ عن إفلات المفاتيح. يتطلب وضع «اضغط مع الاستمرار للتحدث» GNOME 48 أو أحدث، أو KDE Plasma، أو جلسة X11.",
+      "holdUnsupportedOnHyprland": "في Hyprland، يتوفر وضع «استمرار الضغط» لاختصار الإملاء فقط."
     },
     "portal": {
-      "voiceAgentHold": "Hold to talk to the assistant",
-      "translationHold": "Hold to dictate for translation"
+      "voiceAgentHold": "اضغط مع الاستمرار للتحدث إلى المساعد",
+      "translationHold": "اضغط مع الاستمرار للإملاء بغرض الترجمة"
     }
   },
   "systemSettings": {

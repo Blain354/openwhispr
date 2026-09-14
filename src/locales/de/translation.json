@@ -2193,12 +2193,12 @@
         "hyprlandConfigWriteWarningDescription": "OpenWhispr kann nicht in {{path}} schreiben. Deshalb bleiben Tastenkombinationen nach einem Neuladen der Hyprland-Konfiguration nicht erhalten. Stellen Sie sicher, dass die Datei existiert und beschreibbar ist.",
         "hyprlandUnbindDescription": "Unter Hyprland beansprucht OpenWhispr die ausgewählte Tastenkombination. Jede vorhandene Hyprland-Belegung mit derselben Tastenkombination wird aufgehoben, wenn OpenWhispr seine Tastenkombination registriert.",
         "gestures": {
-          "holdTitle": "Hold to speak",
-          "holdDetail": "Release to finish",
-          "handsFreeTitle": "Hands-free",
-          "handsFreeDetail": "Press again to stop",
-          "doublePress": "Double press",
-          "tapOnlyTitle": "Press to start, press again to stop"
+          "holdTitle": "Halten zum Sprechen",
+          "holdDetail": "Loslassen zum Beenden",
+          "handsFreeTitle": "Freihandmodus",
+          "handsFreeDetail": "Erneut tippen zum Beenden",
+          "doublePress": "Zweimal tippen",
+          "tapOnlyTitle": "Tippen zum Starten, erneut zum Beenden"
         }
       },
       "meetingHotkey": {
@@ -3746,10 +3746,10 @@
       "description": "Tippe {{hotkey}} zweimal, um den Freihandmodus zu starten."
     },
     "holdMigrationCard": {
-      "badge": "New in this update",
-      "title": "Hold to speak, release to finish",
-      "description": "We changed how your hotkey works: hold {{hotkey}} while you talk.",
-      "gesture": "Double press it for hands‑free, press again to stop."
+      "badge": "Neu in diesem Update",
+      "title": "Halten zum Sprechen, Loslassen zum Beenden",
+      "description": "Dein Hotkey funktioniert jetzt anders: Halte {{hotkey}} gedrückt, während du sprichst.",
+      "gesture": "Tippe ihn zweimal für den Freihandmodus, tippe erneut zum Beenden."
     }
   },
   "dictationAgent": {
