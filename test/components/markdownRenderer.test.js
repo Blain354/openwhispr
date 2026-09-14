@@ -51,6 +51,27 @@ test("a wide table scrolls instead of stretching its container", async (t) => {
   assert.ok(html.includes("overflow-x-auto"), "table sits in a scrollable wrapper");
 });
 
+test("Markdown component types stay stable across streaming and parent rerenders", async (t) => {
+  installBrowserGlobals(t);
+  const vite = await createRendererServer(t, {
+    cachePrefix: "openwhispr-markdown-reconciliation-test-",
+  });
+  const { MarkdownRenderer } = await vite.ssrLoadModule("/components/ui/MarkdownRenderer.tsx");
+  const initial = MarkdownRenderer({ content: TABLE_MARKDOWN }).props.children.props.components;
+
+  for (const props of [
+    { content: TABLE_MARKDOWN },
+    { content: `${TABLE_MARKDOWN}\nMore streamed text.` },
+    { content: TABLE_MARKDOWN, className: "text-sm" },
+  ]) {
+    const updated = MarkdownRenderer(props).props.children.props.components;
+    // A changed ancestor type also remounts nested tables and loses their scroll position.
+    for (const tag of Object.keys(initial)) {
+      assert.equal(updated[tag], initial[tag], `${tag} must reconcile instead of remounting`);
+    }
+  }
+});
+
 test("inline markdown inside cells still renders", async (t) => {
   const html = await renderMarkdown(t, TABLE_MARKDOWN);
 
@@ -75,11 +96,12 @@ test("GFM extras the plugin enables render as elements, not literal syntax", asy
 
   assert.ok(html.includes("<del"), "strikethrough renders as del");
   assert.ok(!html.includes("~~"), "no literal tildes survive");
-  assert.ok(
-    html.includes('href="https://openwhispr.com"'),
-    "a bare URL is autolinked"
+  assert.ok(html.includes('href="https://openwhispr.com"'), "a bare URL is autolinked");
+  assert.equal(
+    (html.match(/type="checkbox"/g) || []).length,
+    2,
+    "task list renders two checkboxes"
   );
-  assert.equal((html.match(/type="checkbox"/g) || []).length, 2, "task list renders two checkboxes");
 });
 
 test("URL sanitisation is unchanged with the plugin enabled", async (t) => {
