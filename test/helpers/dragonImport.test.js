@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const load = () => import("../../src/helpers/dragonImport.js");
-const fixture = (name) => fs.readFileSync(path.join(__dirname, "..", "fixtures", name));
+const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name));
 
 test("decodeDragonExport reads UTF-8 without a BOM", async () => {
   const { decodeDragonExport } = await load();
@@ -148,6 +148,19 @@ test("parseDragonWordList flags word properties it cannot map", async () => {
   const r = parseDragonWordList(withProps);
   assert.deepEqual(r.words, ["POE RAY", "(", "Oertli", "A & B"]);
   assert.deepEqual(r.warnings, [{ code: "XML_PROPERTIES_IGNORED" }]);
+});
+
+test("parseDragonWordList reads self-closing Word tags without false-flagging properties", async () => {
+  const { parseDragonWordList } = await load();
+  const xml =
+    '<?xml version="1.0"?><WordExport>' +
+    '<Word name="alpha" />' +
+    '<Word name="beta" />' +
+    "</WordExport>";
+  const r = parseDragonWordList(xml);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.words, ["alpha", "beta"]);
+  assert.deepEqual(r.warnings, []);
 });
 
 test("parseDragonWordList decodes numeric entities and leaves an out-of-range reference literal", async () => {

@@ -15,7 +15,7 @@
 const HEADER_LINE = /^@version\s*=\s*plato(-utf8)?$/i;
 
 const XML_WORD_NAME = /<Word\b[^>]*?\bname="([^"]*)"/g;
-const XML_WORD_WITH_CHILDREN = /<Word\b[^>]*>\s*<[A-Za-z]/;
+const XML_WORD_WITH_CHILDREN = /<Word\b[^>]*[^/>]>\s*<[A-Za-z]/;
 const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 
 function decodeEntities(value) {

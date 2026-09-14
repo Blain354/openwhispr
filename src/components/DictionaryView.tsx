@@ -255,15 +255,14 @@ export default function DictionaryView() {
         confirmDisabled={!dragonPreview || dragonPreview.add.length === 0}
         onConfirm={confirmDragonImport}
       >
-        {dragonPreview &&
-          (dragonPreview.unreadableLines > 0 || dragonPreview.propertiesIgnored) && (
-            <p className="text-xs text-foreground/45">
-              {dragonPreview.unreadableLines > 0 &&
-                t("dictionary.dragonImport.unreadable", { count: dragonPreview.unreadableLines })}
-              {dragonPreview.unreadableLines > 0 && dragonPreview.propertiesIgnored && " "}
-              {dragonPreview.propertiesIgnored && t("dictionary.dragonImport.propertiesIgnored")}
-            </p>
-          )}
+        {dragonPreview && (dragonPreview.unreadableLines > 0 || dragonPreview.propertiesIgnored) ? (
+          <p className="text-xs text-foreground/45">
+            {dragonPreview.unreadableLines > 0 &&
+              t("dictionary.dragonImport.unreadable", { count: dragonPreview.unreadableLines })}
+            {dragonPreview.unreadableLines > 0 && dragonPreview.propertiesIgnored && " "}
+            {dragonPreview.propertiesIgnored && t("dictionary.dragonImport.propertiesIgnored")}
+          </p>
+        ) : null}
       </ConfirmDialog>
 
       <div className="px-5 pt-4">
@@ -306,10 +305,7 @@ export default function DictionaryView() {
                 <div className="w-px h-3.5 bg-foreground/10 dark:bg-white/8" />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      aria-label={t("dictionary.importWords")}
-                      className="flex items-center gap-1 text-xs text-foreground/45 hover:text-foreground/60 data-[state=open]:text-primary transition-colors"
-                    >
+                    <button className="flex items-center gap-1 text-xs text-foreground/45 hover:text-foreground/60 data-[state=open]:text-primary transition-colors">
                       <Upload size={11} />
                       {t("dictionary.importMenu")}
                       <ChevronDown size={10} />
