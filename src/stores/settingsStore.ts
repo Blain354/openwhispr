@@ -3031,6 +3031,12 @@ export function selectPolicyEffectiveSettings(
     );
     if (!selection) continue;
 
+    if (definition.optional && selection.mode !== config.mode) {
+      // A forbidden override goes inert; Cloud would count as chosen even without a model.
+      writable[definition.storeKeys.model] = "";
+      continue;
+    }
+
     writable[definition.storeKeys.mode] = selection.mode;
     if (definition.storeKeys.cloudMode) {
       writable[definition.storeKeys.cloudMode] =

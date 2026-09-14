@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const { createRendererServer, installBrowserGlobals } = require("../lib/rendererTestHarness");
 
 // A managed org that permits BYOK. In v1.10.0 the policy overlay treated the
@@ -44,11 +45,14 @@ const unconfiguredOverride = {
 
 async function loadStore(t, initialStorage, cachePrefix) {
   installBrowserGlobals(t, { initialStorage });
-  const vite = await createRendererServer(t, { cachePrefix });
+  const vite = await createRendererServer(t, {
+    cachePrefix,
+    resolveAlias: { "@": path.resolve(__dirname, "../../src") },
+  });
   await vite.ssrLoadModule("/models/ModelRegistry.ts");
   const store = await vite.ssrLoadModule("/stores/settingsStore.ts");
   const inference = await vite.ssrLoadModule("/helpers/dictationAgentInference.js");
-  return { ...store, ...inference };
+  return { ...store, ...inference, vite };
 }
 
 test("a managed policy never invents a target for an unconfigured vision override", async (t) => {
@@ -78,6 +82,81 @@ test("a managed policy never invents a target for an unconfigured vision overrid
     assert.equal(config.mode, "openwhispr");
     assert.equal(attachScreenContext, true);
   });
+});
+
+test("a forbidden vision mode cannot redirect a local assistant to Cloud", async (t) => {
+  const { useSettingsStore, selectPolicyEffectiveSettings, resolveChatStreamingInference } =
+    await loadStore(
+      t,
+      {
+        ...unconfiguredOverride,
+        dictationAgentMode: "local",
+        dictationAgentProvider: "qwen",
+        dictationAgentModel: "qwen3-4b-q4_k_m",
+        dictationAgentVisionProvider: "gemini",
+        dictationAgentVisionModel: "gemini-2.5-flash",
+      },
+      "openwhispr-policy-vision-mode-test-"
+    );
+  const raw = { ...useSettingsStore.getState(), isSignedIn: true };
+  const policy = managedByokPolicy([]);
+  policy.policy.llm.allowedModes = ["openwhispr", "local"];
+  const effective = selectPolicyEffectiveSettings(raw, policy);
+  const result = resolveChatStreamingInference(effective, {
+    inferenceScope: "dictationAgent",
+    hasScreenContext: true,
+    isProviderImageWired: (provider) => ["openwhispr", "gemini"].includes(provider),
+  });
+
+  assert.equal(result.config.scope, "dictationAgent");
+  assert.equal(result.config.mode, "local");
+  assert.equal(result.attachScreenContext, false);
+  assert.equal(effective.dictationAgentVisionModel, "");
+  assert.equal(raw.dictationAgentVisionModel, "gemini-2.5-flash");
+
+  const restored = selectPolicyEffectiveSettings(raw, managedByokPolicy(["gemini"]));
+  const restoredResult = resolveChatStreamingInference(restored, {
+    inferenceScope: "dictationAgent",
+    hasScreenContext: true,
+    isProviderImageWired: (provider) => provider === "gemini",
+  });
+  assert.equal(restoredResult.config.scope, "dictationAgentVision");
+  assert.equal(restoredResult.config.provider, "gemini");
+  assert.equal(restoredResult.config.model, "gemini-2.5-flash");
+  assert.equal(restoredResult.attachScreenContext, true);
+});
+
+test("the vision picker shows no Active model after policy clears its selection", async (t) => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { vite } = await loadStore(
+    t,
+    {
+      ...unconfiguredOverride,
+      dictationAgentMode: "providers",
+      dictationAgentProvider: "openai",
+      dictationAgentModel: "gpt-5-mini",
+      dictationAgentVisionProvider: "gemini",
+      dictationAgentVisionModel: "gemini-2.5-flash",
+    },
+    "openwhispr-policy-vision-picker-test-"
+  );
+  const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");
+  // Server rendering reads Zustand's initial snapshot rather than getState().
+  Object.assign(usePolicyStore.getInitialState(), managedByokPolicy(["openai"]));
+  const { default: InferenceConfigEditor } = await vite.ssrLoadModule(
+    "/components/settings/InferenceConfigEditor.tsx"
+  );
+  const { default: i18n } = await vite.ssrLoadModule("/i18n.ts");
+  const renderEditor = (scope) =>
+    renderToStaticMarkup(
+      React.createElement(InferenceConfigEditor, { scope, allowedModes: ["providers"] })
+    );
+
+  const visionMarkup = renderEditor("dictationAgentVision");
+  assert.ok(visionMarkup.includes("GPT-5 Mini"), "the model list is actually rendered");
+  assert.ok(!visionMarkup.includes(`>${i18n.t("common.active")}<`));
+  assert.ok(renderEditor("dictationAgent").includes(`>${i18n.t("common.active")}<`));
 });
 
 test("a policy that moves a configured override's provider clears its model", async (t) => {
