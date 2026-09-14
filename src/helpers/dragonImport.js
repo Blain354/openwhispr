@@ -14,6 +14,19 @@
 
 const HEADER_LINE = /^@version\s*=\s*plato(-utf8)?$/i;
 
+const XML_WORD_NAME = /<Word\b[^>]*?\bname="([^"]*)"/g;
+const XML_WORD_WITH_CHILDREN = /<Word\b[^>]*>\s*<[A-Za-z]/;
+const XML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+function decodeEntities(value) {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_m, ref) => {
+    if (ref[0] !== "#") return XML_ENTITIES[ref.toLowerCase()];
+    const code =
+      ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+    return String.fromCodePoint(code);
+  });
+}
+
 export function decodeDragonExport(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   // UTF-16 by BOM, or by a BOM-less "<" (Dragon's XML declares utf-16).
@@ -77,9 +90,24 @@ function parseTxt(src) {
   return { ok: true, format: "txt", header, ...result };
 }
 
+// Regex, not an XML parser: the schema is one root and one attribute, the
+// DOCTYPE points at a dead host, and nothing may ever try to fetch it.
+function parseXml(src) {
+  if (!/<WordExport\b/.test(src)) return { ok: false, error: { code: "UNSUPPORTED_XML" } };
+  const entries = [];
+  for (const match of src.matchAll(XML_WORD_NAME)) {
+    const value = decodeEntities(match[1]).trim();
+    if (value) entries.push({ value, line: entries.length + 1 });
+  }
+  const result = collect(entries);
+  if (result.words.length === 0) return { ok: false, error: { code: "EMPTY_FILE" } };
+  if (XML_WORD_WITH_CHILDREN.test(src)) result.warnings.push({ code: "XML_PROPERTIES_IGNORED" });
+  return { ok: true, format: "xml", header: null, ...result };
+}
+
 export function parseDragonWordList(text) {
   const src = String(text ?? "");
-  return parseTxt(src);
+  return src.trimStart().startsWith("<") ? parseXml(src) : parseTxt(src);
 }
 
 export function planDragonImport(words, existingWords) {

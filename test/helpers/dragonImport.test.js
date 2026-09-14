@@ -101,3 +101,63 @@ test("planDragonImport drops words already present, case-insensitively, keeping 
   const plan = planDragonImport(["Applas", "ADO", "Zoë"], ["ado", " Zoë "]);
   assert.deepEqual(plan, { add: ["Applas"], skippedExisting: 2 });
 });
+
+// Header copied verbatim from a real Dragon Professional Individual 14 export
+// (mdbridge bug report #160215-001402); body trimmed to three words.
+const DRAGON_XML = `<?xml version="1.0" encoding="utf-16"?>
+
+<!DOCTYPE WordExport SYSTEM "http://dragoncontent.nuance.com/dtds/Words10.dtd">
+
+<WordExport NatspeakVersion="14.00.000.180" NatspeakEdition="ProfessionalIndividual" User="Mark virgin" Topic="General - Medium" Language="ENX" MRECVersion="1.28.100.16375">
+
+\t<Word name="POE RAY\\\\Poe Ray">
+\t</Word>
+\t<Word name="(\\\\left parenthesis">
+\t</Word>
+\t<Word name="Oertli">
+\t</Word>
+\t<Word name="A &amp; B\\\\A and B">
+\t</Word>
+
+</WordExport>
+`;
+
+test("parseDragonWordList reads a Windows Dragon XML export", async () => {
+  const { parseDragonWordList } = await load();
+  const r = parseDragonWordList(DRAGON_XML);
+  assert.equal(r.ok, true);
+  assert.equal(r.format, "xml");
+  assert.equal(r.header, null);
+  assert.deepEqual(r.words, ["POE RAY", "(", "Oertli", "A & B"]);
+  assert.deepEqual(r.warnings, []);
+});
+
+test("parseDragonWordList decodes UTF-16 XML end to end", async () => {
+  const { parseDragonWordList, decodeDragonExport } = await load();
+  const bytes = Buffer.from("﻿" + DRAGON_XML, "utf16le");
+  const r = parseDragonWordList(decodeDragonExport(bytes).text);
+  assert.deepEqual(r.words, ["POE RAY", "(", "Oertli", "A & B"]);
+});
+
+test("parseDragonWordList flags word properties it cannot map", async () => {
+  const { parseDragonWordList } = await load();
+  const withProps = DRAGON_XML.replace(
+    '<Word name="Oertli">\n\t</Word>',
+    '<Word name="Oertli">\n\t\t<Property id="1">x</Property>\n\t</Word>'
+  );
+  const r = parseDragonWordList(withProps);
+  assert.deepEqual(r.words, ["POE RAY", "(", "Oertli", "A & B"]);
+  assert.deepEqual(r.warnings, [{ code: "XML_PROPERTIES_IGNORED" }]);
+});
+
+test("parseDragonWordList refuses XML that is not a Windows Dragon export", async () => {
+  const { parseDragonWordList } = await load();
+  const mac = '<?xml version="1.0"?><vocabulary><item written="x" spoken="y"/></vocabulary>';
+  assert.deepEqual(parseDragonWordList(mac), { ok: false, error: { code: "UNSUPPORTED_XML" } });
+});
+
+test("parseDragonWordList treats a WordExport with no words as empty", async () => {
+  const { parseDragonWordList } = await load();
+  const r = parseDragonWordList('<?xml version="1.0"?><WordExport></WordExport>');
+  assert.deepEqual(r, { ok: false, error: { code: "EMPTY_FILE" } });
+});
