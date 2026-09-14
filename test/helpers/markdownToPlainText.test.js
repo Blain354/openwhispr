@@ -190,3 +190,77 @@ test("escaped table pipes remain inside their cell and preserve empty cells", as
   assert.equal(markdownToPlainText(String.raw`| A\\\|B | C |`), "A\\|B\tC");
   assert.equal(markdownToPlainText("| A | | C |"), "A\t\tC");
 });
+
+test("POSIX paths retain literal underscores alongside surrounding emphasis", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const path of [
+    "/tmp/__init__.py",
+    "/home/me/__pycache__/config.py",
+    "~/__work__/code",
+    "./__cache__/file",
+    "../pkg/__init__.py",
+    "pkg/__init__.py",
+    "__pycache__/config.py",
+    "_work_/code",
+    "my_package/__init__.py",
+  ]) {
+    assert.equal(markdownToPlainText(`Open ${path} and **read** it.`), `Open ${path} and read it.`);
+    for (const marker of ["**", "*", "__", "_", "~~"]) {
+      assert.equal(markdownToPlainText(`Open ${marker}${path}${marker}.`), `Open ${path}.`);
+    }
+  }
+});
+
+test("quoted POSIX paths retain spaces and literal filename punctuation", async () => {
+  const { markdownToPlainText } = await helperModule;
+  const answer = 'Open "/Users/me/My Documents/report _draft_.txt" and **read** it.';
+  assert.equal(
+    markdownToPlainText(answer),
+    'Open "/Users/me/My Documents/report _draft_.txt" and read it.'
+  );
+});
+
+test("link destinations preserve balanced and escaped parentheses", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const [url, destination] of [
+    ["https://example.com/a_(b)/__init__.py", "https://example.com/a_(b)/__init__.py"],
+    ["https://example.com/a_(b_(c))/__init__.py", "https://example.com/a_(b_(c))/__init__.py"],
+    [String.raw`https://example.com/a_\(b\)/__init__.py`, "https://example.com/a_(b)/__init__.py"],
+  ]) {
+    assert.equal(markdownToPlainText(`[**Source**](${url})`), `Source (${destination})`);
+    assert.equal(markdownToPlainText(`[Source](${url} "A title")`), `Source (${destination})`);
+    assert.equal(markdownToPlainText(`![A chart](${url})`), "A chart");
+    assert.equal(markdownToPlainText(`![A chart](${url} 'Chart title')`), "A chart");
+  }
+  const malformed = "[Source](https://example.com/a_(b)";
+  assert.equal(markdownToPlainText(malformed), malformed);
+});
+
+test("inline code matches whole delimiter runs and retains literal backticks", async () => {
+  const { markdownToPlainText } = await helperModule;
+  for (const [input, expected] of [
+    ["Run ``echo `whoami` ``.", "Run echo `whoami` ."],
+    ["Run `` echo `whoami` ``.", "Run echo `whoami`."],
+    ["Use ``a`b`` here.", "Use a`b here."],
+    ["Use ```a``b`c``` here.", "Use a``b`c here."],
+    ["Use `` **bold** `code` `` here.", "Use **bold** `code` here."],
+    ["Use ``unclosed` here.", "Use ``unclosed` here."],
+    ["Keep `  ` spaces.", "Keep    spaces."],
+  ]) {
+    assert.equal(markdownToPlainText(input), expected);
+  }
+});
+
+test("table conversion preserves empty edge cells and column alignment", async () => {
+  const { markdownToPlainText } = await helperModule;
+  assert.equal(
+    markdownToPlainText("| | 2025 | 2026 |\n|---|---|---|\n| Revenue | 100 | 200 |"),
+    "\t2025\t2026\nRevenue\t100\t200"
+  );
+  assert.equal(
+    markdownToPlainText("\n| A | B | |\n|---|---|---|\n| | value | |\n\n"),
+    "A\tB\t\n\tvalue\t"
+  );
+  assert.equal(markdownToPlainText("| | | |"), "\t\t");
+  assert.equal(markdownToPlainText("  Prose.  \n\nMore prose. \n"), "Prose.\n\nMore prose.");
+});

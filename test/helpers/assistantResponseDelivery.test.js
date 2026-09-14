@@ -151,6 +151,26 @@ test("a clipboard-only delivery keeps the response verbatim", async () => {
 
 const LITERAL_CONTENT_CASES = [
   {
+    name: "POSIX paths",
+    content: "Open /tmp/__init__.py and ~/__work__/code.",
+    plainText: "Open /tmp/__init__.py and ~/__work__/code.",
+  },
+  {
+    name: "parenthesized URL destinations",
+    content: "[Source](https://example.com/a_(b)/__init__.py)",
+    plainText: "Source (https://example.com/a_(b)/__init__.py)",
+  },
+  {
+    name: "backticks inside inline code",
+    content: "Run ``echo `whoami` ``.",
+    plainText: "Run echo `whoami` .",
+  },
+  {
+    name: "empty table edge cells",
+    content: "| | 2025 | 2026 |\n|---|---|---|\n| Revenue | 100 | |",
+    plainText: "\t2025\t2026\nRevenue\t100\t",
+  },
+  {
     name: "URL destinations",
     content: "[**Source**](https://example.com/pkg/__init__.py)",
     plainText: "Source (https://example.com/pkg/__init__.py)",

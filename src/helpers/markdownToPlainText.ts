@@ -23,7 +23,52 @@ const WEB_URL = /(?:https?|ftp):\/\/[^\s<>"`]+/;
 // otherwise the match would swallow the prose after an unquoted filename.
 const WINDOWS_PATH =
   /(?:[a-z]:\\|\\\\[^\s\\<>:"|?*`]+\\)(?:[^\\\r\n<>:"|?*`]*\\(?=[^\s\\<>:"|?*`]))*[^\s<>:"|?*`]*/;
-const LITERAL_RESOURCE = new RegExp(`${WEB_URL.source}|${WINDOWS_PATH.source}`, "gi");
+// Paired underscores in a relative directory are part of its name; any
+// surrounding emphasis must stay outside the protected path.
+const POSIX_PATH =
+  /(?<![a-z0-9/])(?:(?<!~)~\/|\.{1,2}\/|\/|__[a-z0-9.-][a-z0-9_.-]*__\/|_[a-z0-9.-][a-z0-9_.-]*_\/|[a-z0-9.-][a-z0-9_.-]*\/)[^\s<>"`]+/;
+const LITERAL_RESOURCE = new RegExp(
+  `${WEB_URL.source}|${WINDOWS_PATH.source}|${POSIX_PATH.source}`,
+  "gi"
+);
+
+function stripLinks(text: string, preserve: (content: string) => string): string {
+  let result = "";
+  let previousEnd = 0;
+  for (const match of text.matchAll(/(!?)\[([^\]]*)\]\(/g)) {
+    if (match.index < previousEnd) continue;
+    const destinationStart = match.index + match[0].length;
+    let destinationEnd = destinationStart;
+    let depth = 0;
+    // A destination can contain nested or escaped parentheses. Its first `)`
+    // is not necessarily the end of the link.
+    for (; destinationEnd < text.length; destinationEnd += 1) {
+      const character = text[destinationEnd];
+      if (character === "\\" && destinationEnd + 1 < text.length) {
+        destinationEnd += 1;
+      } else if (character === "(") {
+        depth += 1;
+      } else if (character === ")") {
+        if (depth === 0) break;
+        depth -= 1;
+      } else if (/\s/.test(character)) {
+        break;
+      }
+    }
+    const closing = text.slice(destinationEnd).match(/^(?:\s+(?:"[^"]*"|'[^']*'))?\)/);
+    if (depth !== 0 || !closing) continue;
+    const destination = text.slice(destinationStart, destinationEnd).replace(/\\([\\()])/g, "$1");
+    const label = match[2];
+    result += text.slice(previousEnd, match.index);
+    result += match[1]
+      ? label
+      : label === destination
+        ? preserve(destination)
+        : `${label} (${preserve(destination)})`;
+    previousEnd = destinationEnd + closing[0].length;
+  }
+  return result + text.slice(previousEnd);
+}
 
 function hasOpenEmphasis(text: string, marker: string): boolean {
   let count = 0;
@@ -38,7 +83,7 @@ function hasOpenEmphasis(text: string, marker: string): boolean {
 }
 
 function stripInline(text: string): string {
-  // Code, URL destinations and Windows paths are data, even when they contain
+  // Code, URL destinations and file paths are data, even when they contain
   // markdown punctuation. Use a prefix absent from the input to avoid collisions.
   const literals: string[] = [];
   let placeholderPrefix = "";
@@ -47,21 +92,19 @@ function stripInline(text: string): string {
     literals.push(content);
     return `${placeholderPrefix}${literals.length - 1}`;
   };
-  const withPlaceholders = text.replace(/(?<!\\)`([^`]+)`/g, (_match, content: string): string =>
-    preserve(content)
+  const withPlaceholders = text.replace(
+    /(?<![\\`])(`+)(?!`)(.*?)(?<!`)\1(?!`)/g,
+    (_match, _delimiter: string, content: string): string =>
+      // Markdown permits padding a code span with one space at either end
+      // so literal backticks do not merge with the delimiters.
+      preserve(/^ .* $/.test(content) && /[^ ]/.test(content) ? content.slice(1, -1) : content)
   );
   let resourceEnd = 0;
   let resourceContext = "";
 
-  const stripped = withPlaceholders
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+  const stripped = stripLinks(withPlaceholders, preserve)
     .replace(
-      /\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
-      (_match, label: string, url: string): string =>
-        label === url ? preserve(url) : `${label} (${preserve(url)})`
-    )
-    .replace(
-      /(["'])((?:[a-z]:\\|\\\\[^\s\\]+\\)[^\r\n]*?)\1/gi,
+      /(["'])((?:[a-z]:\\|\\\\[^\s\\]+\\|~\/|\.{1,2}\/|\/|[a-z0-9_.-]+\/)[^\r\n]*?)\1/gi,
       (_match, quote: string, path: string): string => quote + preserve(path) + quote
     )
     .replace(LITERAL_RESOURCE, (resource: string, offset: number, source: string): string => {
@@ -158,11 +201,9 @@ export function markdownToPlainText(markdown: string): string {
       .replace(/^(\s{0,3}>\s?)+/, "")
       .replace(/^\s{0,3}#{1,6}\s+/, "")
       .replace(/^(\s*)[*+]\s+/, "$1- ");
-    lines.push(stripInline(block));
+    lines.push(stripInline(block).replace(/[ \t]+$/, ""));
   }
 
-  return lines
-    .join("\n")
-    .replace(/[ \t]+$/gm, "")
-    .trim();
+  // Tabs emitted by table rows represent cells, including empty edge cells.
+  return lines.join("\n").replace(/^[ \n]+|[ \n]+$/g, "");
 }
