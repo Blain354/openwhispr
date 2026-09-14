@@ -139,3 +139,21 @@ test("the vault and MCP ops are reachable from the voice session only", () => {
     }
   }
 });
+
+test("the control panel may read the configuration and switch the feature on", () => {
+  for (const op of ["config.get", "config.setEnabled"]) {
+    assert.equal(isOpAllowed({ windowKind: "control-panel", op, toolsInChat: false }), true, op);
+    assert.equal(isOpAllowed({ windowKind: "session", op, toolsInChat: false }), true, op);
+    assert.equal(isOpAllowed({ windowKind: "main", op, toolsInChat: true }), false, op);
+    assert.equal(isOpAllowed({ windowKind: "companion", op, toolsInChat: true }), false, op);
+  }
+  // Everything else still needs the developer flag, or the session window.
+  assert.equal(
+    isOpAllowed({ windowKind: "control-panel", op: "config.setHotkey", toolsInChat: true }),
+    false
+  );
+  assert.equal(
+    isOpAllowed({ windowKind: "control-panel", op: "workers.delegate", toolsInChat: true }),
+    false
+  );
+});

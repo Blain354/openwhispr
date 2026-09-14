@@ -27,21 +27,21 @@ const PRELOAD_ID = "openwhispr-conversation-bridge";
 const HOTKEY_REGISTRATION_DELAY_MS = 2000;
 
 const HOTKEY_ERROR_KEYS = {
-  empty: "conversation:hotkey.errors.empty",
-  "modifier-only": "conversation:hotkey.errors.modifierOnly",
-  "right-side-modifier": "conversation:hotkey.errors.rightSideModifier",
-  "multiple-keys": "conversation:hotkey.errors.multipleKeys",
-  "needs-modifier": "conversation:hotkey.errors.needsModifier",
-  "windows-reserved": "conversation:hotkey.errors.windowsReserved",
-  duplicate: "conversation:hotkey.errors.duplicate",
-  "starts-with": "conversation:hotkey.errors.startsWith",
-  "registration-failed": "conversation:hotkey.errors.registrationFailed",
-  "hotkey-manager-unavailable": "conversation:hotkey.errors.unavailable",
+  empty: "conversation.hotkey.errors.empty",
+  "modifier-only": "conversation.hotkey.errors.modifierOnly",
+  "right-side-modifier": "conversation.hotkey.errors.rightSideModifier",
+  "multiple-keys": "conversation.hotkey.errors.multipleKeys",
+  "needs-modifier": "conversation.hotkey.errors.needsModifier",
+  "windows-reserved": "conversation.hotkey.errors.windowsReserved",
+  duplicate: "conversation.hotkey.errors.duplicate",
+  "starts-with": "conversation.hotkey.errors.startsWith",
+  "registration-failed": "conversation.hotkey.errors.registrationFailed",
+  "hotkey-manager-unavailable": "conversation.hotkey.errors.unavailable",
 };
 
 const HOTKEY_WARNING_KEYS = {
-  "powertoys-run": "conversation:hotkey.warnings.powertoysRun",
-  "command-palette": "conversation:hotkey.warnings.commandPalette",
+  "powertoys-run": "conversation.hotkey.warnings.powertoysRun",
+  "command-palette": "conversation.hotkey.warnings.commandPalette",
 };
 
 let installed = null;
@@ -143,14 +143,14 @@ function install({ windowManager, whisperManager, debugLogger }) {
         new Notification({
           title: tr(
             succeeded
-              ? "conversation:workers.notificationDone"
-              : "conversation:workers.notificationFailed"
+              ? "conversation.workers.notificationDone"
+              : "conversation.workers.notificationFailed"
           ),
           body: task.title,
         }).show();
       }
       const sentence = tr(
-        succeeded ? "conversation:workers.spokenDone" : "conversation:workers.spokenFailed",
+        succeeded ? "conversation.workers.spokenDone" : "conversation.workers.spokenFailed",
         { title: task.title }
       );
       if (runtime.isRunning()) runtime.send("say", { text: sentence });
@@ -184,8 +184,8 @@ function install({ windowManager, whisperManager, debugLogger }) {
   const notifyHotkeyUnavailable = (hotkey) => {
     if (!Notification.isSupported()) return;
     const notification = new Notification({
-      title: tr("conversation:hotkey.unavailableTitle"),
-      body: tr("conversation:hotkey.unavailableBody", { hotkey }),
+      title: tr("conversation.hotkey.unavailableTitle"),
+      body: tr("conversation.hotkey.unavailableBody", { hotkey }),
     });
     notification.on("click", () => void conversationWindows.showSession());
     notification.show();
@@ -254,7 +254,7 @@ function install({ windowManager, whisperManager, debugLogger }) {
   const developmentOnly = (handler) => async (payload, context) =>
     isDevelopment
       ? handler(payload, context)
-      : { success: false, displayText: tr("conversation:common.forbidden") };
+      : { success: false, displayText: tr("conversation.common.forbidden") };
 
   const idOf = (win) => (win && !win.isDestroyed() ? win.webContents.id : null);
 
@@ -280,7 +280,7 @@ function install({ windowManager, whisperManager, debugLogger }) {
       }),
       "session.begin": async (payload) => {
         if (!sessionController.isActive()) {
-          return { success: false, displayText: tr("conversation:common.unavailable") };
+          return { success: false, displayText: tr("conversation.common.unavailable") };
         }
         const result = await runtime.begin({ llm: payload.llm, tools: payload.tools });
         if (result.success) {
@@ -302,7 +302,7 @@ function install({ windowManager, whisperManager, debugLogger }) {
         if (!result.ok) {
           return {
             success: false,
-            displayText: tr(`conversation:mcp.tokenErrors.${result.error}`),
+            displayText: tr(`conversation.mcp.tokenErrors.${result.error}`),
           };
         }
         // A new token means the next session reconnects with it.
@@ -310,6 +310,29 @@ function install({ windowManager, whisperManager, debugLogger }) {
         return { success: true, data: { servers: result.servers } };
       },
       "config.get": async () => ({ success: true, data: publicConfig() }),
+      "config.setEnabled": async (payload) => {
+        const enabled = !!payload.enabled;
+        saveConfig(userDataDir, { enabled });
+        config = loadConfig(userDataDir);
+        if (!enabled) {
+          conversationHotkey.unregister();
+          await sessionController.stop();
+          return { success: true, data: publicConfig() };
+        }
+        const result = await conversationHotkey.register(config.hotkey);
+        if (!result.success) {
+          return {
+            success: false,
+            data: publicConfig(),
+            errors: describeCodes(result.errors, HOTKEY_ERROR_KEYS),
+          };
+        }
+        return {
+          success: true,
+          data: publicConfig(),
+          warnings: describeCodes(result.warnings, HOTKEY_WARNING_KEYS),
+        };
+      },
       "config.setHotkey": async (payload) => {
         const hotkey = String(payload.hotkey || "").trim();
         const previous = config.hotkey;

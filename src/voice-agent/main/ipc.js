@@ -44,15 +44,15 @@ function registerConversationIpc({
     const windowKind = resolveSender(event);
     const config = getConfig();
     if (!windowKind || typeof op !== "string") {
-      return { success: false, displayText: tr("conversation:common.unavailable") };
+      return { success: false, displayText: tr("conversation.common.unavailable") };
     }
     if (!isOpAllowed({ windowKind, op, toolsInChat: config.toolsInChat })) {
       debugLogger?.warn("Conversation op refused", { op, windowKind }, "conversation");
-      return { success: false, displayText: tr("conversation:common.forbidden") };
+      return { success: false, displayText: tr("conversation.common.forbidden") };
     }
     const handler = handlers[op];
     if (typeof handler !== "function") {
-      return { success: false, displayText: tr("conversation:common.forbidden") };
+      return { success: false, displayText: tr("conversation.common.forbidden") };
     }
     const safePayload =
       payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};

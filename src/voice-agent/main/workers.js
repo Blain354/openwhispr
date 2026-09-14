@@ -129,12 +129,12 @@ function createWorkerManager({
   function describeRefusal(resolved) {
     switch (resolved.error) {
       case "no-projects":
-        return tr("conversation:workers.noProjects");
+        return tr("conversation.workers.noProjects");
       case "no-match":
       case "ambiguous":
-        return tr("conversation:workers.noMatch", { names: resolved.names.join(", ") || "—" });
+        return tr("conversation.workers.noMatch", { names: resolved.names.join(", ") || "—" });
       default:
-        return tr("conversation:workers.refusedFolder");
+        return tr("conversation.workers.refusedFolder");
     }
   }
 
@@ -145,13 +145,13 @@ function createWorkerManager({
       .slice(0, MAX_TITLE_CHARS);
     const prompt = String(payload.prompt || "").trim();
     const project = String(payload.project || "").trim();
-    if (!title || !prompt) return fail(tr("conversation:workers.missingFields"));
+    if (!title || !prompt) return fail(tr("conversation.workers.missingFields"));
     if (prompt.length > MAX_PROMPT_CHARS) {
-      return fail(tr("conversation:workers.promptTooLong", { max: MAX_PROMPT_CHARS }));
+      return fail(tr("conversation.workers.promptTooLong", { max: MAX_PROMPT_CHARS }));
     }
     const claudePath = config.claudePath || defaultClaudePath();
     if (!fsImpl.existsSync(claudePath)) {
-      return fail(tr("conversation:workers.unavailable", { path: claudePath }));
+      return fail(tr("conversation.workers.unavailable", { path: claudePath }));
     }
     const resolved = resolveWorkerCwd(project, {
       roots: config.workerProjectRoots,
@@ -176,19 +176,19 @@ function createWorkerManager({
 
     if (config.confirmDelegation !== false) {
       const approved = await confirm({
-        title: tr("conversation:workers.confirmTitle"),
-        message: tr("conversation:workers.confirmMessage", { title }),
+        title: tr("conversation.workers.confirmTitle"),
+        message: tr("conversation.workers.confirmMessage", { title }),
         detail: [
-          tr("conversation:workers.detailProject", { cwd: resolved.cwd }),
-          tr("conversation:workers.detailPrivacy"),
-          `${tr("conversation:workers.detailPrompt")}\n${excerpt(prompt, 600)}`,
+          tr("conversation.workers.detailProject", { cwd: resolved.cwd }),
+          tr("conversation.workers.detailPrivacy"),
+          `${tr("conversation.workers.detailPrompt")}\n${excerpt(prompt, 600)}`,
         ].join("\n\n"),
         risk: "normal",
         parent: context.parentWindow,
       });
       if (!approved) {
         audit({ op: "workers.delegate", title, cwd: resolved.cwd, decision: "cancelled" });
-        return fail(tr("conversation:workers.cancelled"));
+        return fail(tr("conversation.workers.cancelled"));
       }
     }
 
@@ -216,7 +216,7 @@ function createWorkerManager({
     return {
       success: true,
       data: { taskId: id, accepted: true },
-      displayText: tr("conversation:workers.accepted", { title }),
+      displayText: tr("conversation.workers.accepted", { title }),
     };
   }
 
@@ -303,7 +303,7 @@ function createWorkerManager({
         finish(
           task,
           "failed",
-          tr("conversation:workers.timedOut", { minutes: TASK_TIMEOUT_MS / 60_000 })
+          tr("conversation.workers.timedOut", { minutes: TASK_TIMEOUT_MS / 60_000 })
         );
       } else if (result?.success && code === 0) {
         finish(task, "succeeded");
@@ -311,7 +311,7 @@ function createWorkerManager({
         finish(
           task,
           "failed",
-          tr("conversation:workers.denied", { tools: [...new Set(result.denials)].join(", ") })
+          tr("conversation.workers.denied", { tools: [...new Set(result.denials)].join(", ") })
         );
       } else {
         const raw =
@@ -320,8 +320,8 @@ function createWorkerManager({
           stderrTail.trim().slice(-300);
         // A stale CLI login is the common failure, and its raw message does not say what to do.
         const reason = AUTH_ERROR.test(raw)
-          ? tr("conversation:workers.authRequired")
-          : excerpt(raw, 300) || tr("conversation:workers.exitCode", { code });
+          ? tr("conversation.workers.authRequired")
+          : excerpt(raw, 300) || tr("conversation.workers.exitCode", { code });
         finish(task, "failed", reason);
       }
       pump();
@@ -357,20 +357,20 @@ function createWorkerManager({
       success: true,
       data: { tasks: recent, output: lines.join("\n") },
       displayText: recent.length
-        ? tr("conversation:workers.listed", { count: recent.length })
-        : tr("conversation:workers.none"),
+        ? tr("conversation.workers.listed", { count: recent.length })
+        : tr("conversation.workers.none"),
     };
   }
 
   function cancel(taskId) {
     const task = tasks.get(String(taskId || ""));
-    if (!task) return fail(tr("conversation:workers.notFound"));
+    if (!task) return fail(tr("conversation.workers.notFound"));
     if (task.status === "queued") {
       queue.splice(queue.indexOf(task), 1);
       finish(task, "cancelled");
       return {
         success: true,
-        displayText: tr("conversation:workers.cancelledTask", { title: task.title }),
+        displayText: tr("conversation.workers.cancelledTask", { title: task.title }),
       };
     }
     if (task.status === "running") {
@@ -378,10 +378,10 @@ function createWorkerManager({
       killImpl(task.child?.pid);
       return {
         success: true,
-        displayText: tr("conversation:workers.cancelling", { title: task.title }),
+        displayText: tr("conversation.workers.cancelling", { title: task.title }),
       };
     }
-    return fail(tr("conversation:workers.alreadyFinished", { title: task.title }));
+    return fail(tr("conversation.workers.alreadyFinished", { title: task.title }));
   }
 
   function shutdownSync() {

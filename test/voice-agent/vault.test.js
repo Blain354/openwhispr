@@ -81,17 +81,17 @@ test("reading a note returns its text; private and sealed notes are refused", ()
   assert.match(note.data.output, /pour la dictée/);
   assert.equal(
     vault.read({ path: "Private/journal.md" }).displayText,
-    "conversation:vault.private"
+    "conversation.vault.private"
   );
-  assert.equal(vault.read({ path: "60_Sante/rdv.md" }).displayText, "conversation:vault.private");
-  assert.equal(vault.read({ path: "../etc/passwd" }).displayText, "conversation:vault.refused");
+  assert.equal(vault.read({ path: "60_Sante/rdv.md" }).displayText, "conversation.vault.private");
+  assert.equal(vault.read({ path: "../etc/passwd" }).displayText, "conversation.vault.refused");
 });
 
 test("without a configured vault nothing is read", () => {
   const { vault } = setup({ vaultRoot: "" });
   assert.equal(
     vault.search({ query: "OpenWhispr" }).displayText,
-    "conversation:vault.notConfigured"
+    "conversation.vault.notConfigured"
   );
   assert.equal(vault.read({ path: "50_AI/Murmure.md" }).success, false);
 });

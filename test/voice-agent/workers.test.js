@@ -210,5 +210,5 @@ test("a stale Claude Code login is reported as a sign-in request", async () => {
   await tick();
   await tick();
   assert.equal(updates.at(-1).status, "failed");
-  assert.equal(updates.at(-1).error, "conversation:workers.authRequired");
+  assert.equal(updates.at(-1).error, "conversation.workers.authRequired");
 });

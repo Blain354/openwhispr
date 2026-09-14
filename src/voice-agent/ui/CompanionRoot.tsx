@@ -1,9 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ensureConversationBundles } from "./i18n";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
-
-ensureConversationBundles();
 
 const ORB_COLORS: Record<string, string> = {
   idle: "#6b7280",
@@ -23,7 +20,7 @@ export default function CompanionRoot() {
   const { t } = useTranslation();
   const state = useConversationState();
   const color = ORB_COLORS[state] || ORB_COLORS.idle;
-  const label = t(`conversation:companion.states.${state}`);
+  const label = t(`conversation.companion.states.${state}`);
 
   // The overlay window is transparent; upstream's global stylesheet paints the page background.
   useEffect(() => {
@@ -70,8 +67,8 @@ export default function CompanionRoot() {
       >
         <button
           type="button"
-          aria-label={t("conversation:companion.stop")}
-          title={t("conversation:companion.stop")}
+          aria-label={t("conversation.companion.stop")}
+          title={t("conversation.companion.stop")}
           onClick={() => void invokeConversation("session.stop")}
           style={{
             position: "absolute",

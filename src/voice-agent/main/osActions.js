@@ -216,7 +216,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
   }
 
   function windowsOnly() {
-    return { success: false, displayText: tr("conversation:common.windowsOnly") };
+    return { success: false, displayText: tr("conversation.common.windowsOnly") };
   }
 
   async function getStartApps() {
@@ -242,13 +242,13 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
     if (platform !== "win32") return windowsOnly();
     const query = String(payload.name || "").trim();
     if (!query)
-      return { success: false, displayText: tr("conversation:openApp.notFound", { query }) };
+      return { success: false, displayText: tr("conversation.openApp.notFound", { query }) };
 
     const { match, candidates } = matchApp(query, await getStartApps());
     if (!match) {
       const names = candidates.map((c) => c.Name);
       const key =
-        names.length > 1 ? "conversation:openApp.ambiguous" : "conversation:openApp.notFound";
+        names.length > 1 ? "conversation.openApp.ambiguous" : "conversation.openApp.notFound";
       audit({ op: "os.openApp", windowKind: context?.windowKind, query, decision: "no-match" });
       return {
         success: false,
@@ -277,7 +277,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
       success: true,
       data: { app: match.Name, verified },
       displayText: tr(
-        verified ? "conversation:openApp.launched" : "conversation:openApp.launchedUnverified",
+        verified ? "conversation.openApp.launched" : "conversation.openApp.launchedUnverified",
         { name: match.Name }
       ),
     };
@@ -287,24 +287,24 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
     if (platform !== "win32") return windowsOnly();
     const query = String(payload.query || "").trim();
     if (!query)
-      return { success: false, displayText: tr("conversation:focusWindow.notFound", { query }) };
+      return { success: false, displayText: tr("conversation.focusWindow.notFound", { query }) };
     const result = await runPowerShellProcess(FOCUS_SCRIPT, { input: JSON.stringify({ query }) });
     const parsed = parseJson(result.stdout, { found: false });
     audit({ op: "os.focusWindow", windowKind: context?.windowKind, query, ...parsed });
     if (!parsed.found) {
-      return { success: false, displayText: tr("conversation:focusWindow.notFound", { query }) };
+      return { success: false, displayText: tr("conversation.focusWindow.notFound", { query }) };
     }
     const title = parsed.title || parsed.process || query;
     return parsed.ok
       ? {
           success: true,
           data: { title },
-          displayText: tr("conversation:focusWindow.focused", { title }),
+          displayText: tr("conversation.focusWindow.focused", { title }),
         }
       : {
           success: false,
           data: { title },
-          displayText: tr("conversation:focusWindow.blocked", { title }),
+          displayText: tr("conversation.focusWindow.blocked", { title }),
         };
   }
 
@@ -314,12 +314,12 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
       .trim()
       .toLowerCase();
     if (!DISPLAY_MODES.has(mode)) {
-      return { success: false, displayText: tr("conversation:setDisplays.invalidMode", { mode }) };
+      return { success: false, displayText: tr("conversation.setDisplays.invalidMode", { mode }) };
     }
     const approved = await confirm({
-      title: tr("conversation:setDisplays.title"),
-      message: tr("conversation:setDisplays.message", { mode }),
-      detail: tr("conversation:setDisplays.detail"),
+      title: tr("conversation.setDisplays.title"),
+      message: tr("conversation.setDisplays.message", { mode }),
+      detail: tr("conversation.setDisplays.detail"),
       risk: "high",
       parent: context?.parentWindow,
     });
@@ -329,7 +329,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
       mode,
       decision: approved ? "approved" : "declined",
     });
-    if (!approved) return { success: false, displayText: tr("conversation:common.cancelled") };
+    if (!approved) return { success: false, displayText: tr("conversation.common.cancelled") };
 
     await new Promise((resolve) => {
       const child = spawn(DISPLAY_SWITCH, [`/${mode}`], { windowsHide: true, stdio: "ignore" });
@@ -339,7 +339,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
     return {
       success: true,
       data: { mode },
-      displayText: tr("conversation:setDisplays.done", { mode }),
+      displayText: tr("conversation.setDisplays.done", { mode }),
     };
   }
 
@@ -356,7 +356,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
         scriptSha256,
         decision: "refused-too-long",
       });
-      return { success: false, displayText: tr("conversation:runPowershell.refusedTooLong") };
+      return { success: false, displayText: tr("conversation.runPowershell.refusedTooLong") };
     }
 
     const parseResult = await runPowerShellProcess(PARSE_SCRIPT, { input: script });
@@ -371,26 +371,26 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
         decision: "refused-sensitive",
         reasons: verdict.reasons,
       });
-      return { success: false, displayText: tr("conversation:runPowershell.refusedSensitive") };
+      return { success: false, displayText: tr("conversation.runPowershell.refusedSensitive") };
     }
 
     const detail = [
-      reason ? tr("conversation:runPowershell.reason", { reason }) : "",
+      reason ? tr("conversation.runPowershell.reason", { reason }) : "",
       verdict.reasons.length
-        ? tr("conversation:runPowershell.risks", { reasons: verdict.reasons.join(", ") })
+        ? tr("conversation.runPowershell.risks", { reasons: verdict.reasons.join(", ") })
         : "",
-      tr("conversation:runPowershell.script"),
+      tr("conversation.runPowershell.script"),
       script,
     ]
       .filter(Boolean)
       .join("\n");
 
     const approved = await confirm({
-      title: tr("conversation:runPowershell.title"),
+      title: tr("conversation.runPowershell.title"),
       message: tr(
         verdict.risk === "high"
-          ? "conversation:runPowershell.messageHigh"
-          : "conversation:runPowershell.messageLow"
+          ? "conversation.runPowershell.messageHigh"
+          : "conversation.runPowershell.messageLow"
       ),
       detail,
       risk: verdict.risk,
@@ -406,7 +406,7 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
         reasons: verdict.reasons,
         decision: "declined",
       });
-      return { success: false, displayText: tr("conversation:common.cancelled") };
+      return { success: false, displayText: tr("conversation.common.cancelled") };
     }
 
     const result = await runPowerShellProcess(RUN_SCRIPT, {
@@ -428,13 +428,13 @@ function createOsActions({ userDataDir, confirm, tr, debugLogger, platform = pro
     });
 
     const output = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
-    let displayText = tr("conversation:runPowershell.succeeded");
+    let displayText = tr("conversation.runPowershell.succeeded");
     if (result.timedOut) {
-      displayText = tr("conversation:runPowershell.timedOut", {
+      displayText = tr("conversation.runPowershell.timedOut", {
         seconds: SCRIPT_TIMEOUT_MS / 1000,
       });
     } else if (!ok) {
-      displayText = tr("conversation:runPowershell.failed", { code: result.code });
+      displayText = tr("conversation.runPowershell.failed", { code: result.code });
     }
     return {
       success: ok,

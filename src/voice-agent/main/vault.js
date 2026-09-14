@@ -9,14 +9,14 @@ const { searchVault, readVaultNote } = require("../shared/vaultGuard");
 const MAX_QUERY_CHARS = 200;
 
 const ERROR_KEYS = {
-  "no-vault": "conversation:vault.notConfigured",
-  "empty-query": "conversation:vault.emptyQuery",
-  sensitive: "conversation:vault.private",
-  sealed: "conversation:vault.private",
-  hidden: "conversation:vault.private",
-  excluded: "conversation:vault.private",
-  "not-found": "conversation:vault.notFound",
-  "not-markdown": "conversation:vault.notFound",
+  "no-vault": "conversation.vault.notConfigured",
+  "empty-query": "conversation.vault.emptyQuery",
+  sensitive: "conversation.vault.private",
+  sealed: "conversation.vault.private",
+  hidden: "conversation.vault.private",
+  excluded: "conversation.vault.private",
+  "not-found": "conversation.vault.notFound",
+  "not-markdown": "conversation.vault.notFound",
 };
 
 function createVaultAccess({
@@ -42,7 +42,7 @@ function createVaultAccess({
 
   const refusal = (error) => ({
     success: false,
-    displayText: tr(ERROR_KEYS[error] || "conversation:vault.refused"),
+    displayText: tr(ERROR_KEYS[error] || "conversation.vault.refused"),
   });
 
   function search(payload) {
@@ -68,12 +68,12 @@ function createVaultAccess({
       (item) => `${item.path}${item.conflict ? " (sync conflict copy)" : ""}\n  ${item.snippet}`
     );
     if (result.sensitiveSkipped) {
-      lines.push(tr("conversation:vault.sensitiveSkipped", { count: result.sensitiveSkipped }));
+      lines.push(tr("conversation.vault.sensitiveSkipped", { count: result.sensitiveSkipped }));
     }
     return {
       success: true,
       data: { results: result.results, output: lines.join("\n") },
-      displayText: tr("conversation:vault.found", { count: result.results.length }),
+      displayText: tr("conversation.vault.found", { count: result.results.length }),
     };
   }
 
@@ -92,13 +92,13 @@ function createVaultAccess({
     });
     if (!result.ok) return refusal(result.error);
     const notes = [
-      result.conflict ? tr("conversation:vault.conflictCopy") : "",
-      result.truncated ? tr("conversation:vault.truncated") : "",
+      result.conflict ? tr("conversation.vault.conflictCopy") : "",
+      result.truncated ? tr("conversation.vault.truncated") : "",
     ].filter(Boolean);
     return {
       success: true,
       data: { path: result.path, output: [...notes, result.text].join("\n\n") },
-      displayText: tr("conversation:vault.read", { path: result.path }),
+      displayText: tr("conversation.vault.read", { path: result.path }),
     };
   }
 

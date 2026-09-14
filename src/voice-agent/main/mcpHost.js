@@ -174,7 +174,7 @@ function createMcpHost({
       await reset();
       return {
         success: false,
-        displayText: tr("conversation:mcp.unavailable"),
+        displayText: tr("conversation.mcp.unavailable"),
         errors: [error.message],
       };
     }
@@ -186,25 +186,25 @@ function createMcpHost({
     try {
       state = await ensureConnection();
     } catch {
-      return { success: false, displayText: tr("conversation:mcp.unavailable") };
+      return { success: false, displayText: tr("conversation.mcp.unavailable") };
     }
     const entry = state.callables.get(name);
     // Re-checked here, not only when the tool list was built.
     if (!entry || !toolAccess(state.servers, name)) {
-      return { success: false, displayText: tr("conversation:mcp.unknownTool", { name }) };
+      return { success: false, displayText: tr("conversation.mcp.unknownTool", { name }) };
     }
     const args =
       payload?.arguments && typeof payload.arguments === "object" ? payload.arguments : {};
 
     if (entry.access === "write") {
       const approved = await confirm({
-        title: tr("conversation:mcp.confirmTitle"),
-        message: tr("conversation:mcp.confirmMessage", { tool: entry.tool, server: entry.server }),
-        detail: `${tr("conversation:mcp.detailArguments")}\n${JSON.stringify(args, null, 2).slice(0, MAX_ARGUMENT_CHARS)}`,
+        title: tr("conversation.mcp.confirmTitle"),
+        message: tr("conversation.mcp.confirmMessage", { tool: entry.tool, server: entry.server }),
+        detail: `${tr("conversation.mcp.detailArguments")}\n${JSON.stringify(args, null, 2).slice(0, MAX_ARGUMENT_CHARS)}`,
         risk: "high",
         parent: context.parentWindow,
       });
-      if (!approved) return { success: false, displayText: tr("conversation:mcp.cancelled") };
+      if (!approved) return { success: false, displayText: tr("conversation.mcp.cancelled") };
     }
 
     try {
@@ -214,12 +214,12 @@ function createMcpHost({
       return {
         success: true,
         data: { output: text },
-        displayText: tr("conversation:mcp.done", { tool: entry.tool }),
+        displayText: tr("conversation.mcp.done", { tool: entry.tool }),
       };
     } catch (error) {
       await reset();
       debugLogger?.warn("MCP call failed", { tool: name, error: error?.message }, "conversation");
-      return { success: false, displayText: tr("conversation:mcp.failed", { tool: entry.tool }) };
+      return { success: false, displayText: tr("conversation.mcp.failed", { tool: entry.tool }) };
     }
   }
 

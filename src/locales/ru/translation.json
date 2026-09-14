@@ -4178,5 +4178,181 @@
     },
     "start": "Вести заметки",
     "join": "Присоединиться и вести заметки"
+  },
+  "conversation": {
+    "common": {
+      "unavailable": "Conversation tools are not available in this window.",
+      "forbidden": "This action is not allowed from this window.",
+      "cancelled": "Cancelled.",
+      "windowsOnly": "This action is only available on Windows."
+    },
+    "confirm": {
+      "cancel": "Cancel",
+      "execute": "Run",
+      "timeoutNote": "Without an answer within 60 seconds, the action is cancelled."
+    },
+    "openApp": {
+      "launched": "Opened {{name}}.",
+      "launchedUnverified": "Asked Windows to open {{name}}; no window has appeared yet.",
+      "notFound": "No installed application matches \"{{query}}\".",
+      "ambiguous": "Several applications match \"{{query}}\": {{candidates}}."
+    },
+    "focusWindow": {
+      "focused": "Brought {{title}} to the front.",
+      "notFound": "No open window matches \"{{query}}\".",
+      "blocked": "Found {{title}}, but Windows did not let it come to the front."
+    },
+    "setDisplays": {
+      "title": "Change display mode",
+      "message": "Switch the displays to \"{{mode}}\"?",
+      "detail": "Requested by the assistant. Screens may go dark for a few seconds.",
+      "done": "Display mode set to {{mode}}.",
+      "invalidMode": "Unknown display mode \"{{mode}}\"."
+    },
+    "runPowershell": {
+      "title": "Run a PowerShell script",
+      "messageLow": "The assistant wants to run a read-only PowerShell script.",
+      "messageHigh": "The assistant wants to run a PowerShell script that can change your system.",
+      "reason": "Reason: {{reason}}",
+      "risks": "Why it is flagged: {{reasons}}",
+      "script": "Script:",
+      "refusedSensitive": "Refused: the script touches credential files.",
+      "refusedTooLong": "Refused: the script is too long to be reviewed in a confirmation dialog.",
+      "failed": "The script failed (exit code {{code}}).",
+      "timedOut": "The script was stopped after {{seconds}} seconds.",
+      "succeeded": "The script ran successfully."
+    },
+    "session": {
+      "title": "Conversation",
+      "stop": "End session",
+      "ended": "Session ended",
+      "emptyHint": "Speak after the companion turns blue. Your transcript and the assistant's replies appear here.",
+      "hotkeyHint": "Press {{hotkey}} to end the session.",
+      "notPersisted": "This session is not saved: cloud backup is on and saving voice sessions needs your consent.",
+      "settings": {
+        "title": "Conversation settings",
+        "hotkey": "Session hotkey",
+        "save": "Save",
+        "saved": "Hotkey saved.",
+        "model": "Local model",
+        "language": "Speech language"
+      },
+      "interrupt": "Interrupt",
+      "latency": "Last reply after {{ms}} ms",
+      "errors": {
+        "sidecarNotInstalled": "The voice engine is not installed. See docs/voice-agent/README.md.",
+        "unsupportedProvider": "Conversation mode works with a local model or a custom OpenAI-compatible provider.",
+        "invalidBaseUrl": "The custom provider address is not valid.",
+        "insecureBaseUrl": "A remote provider must use HTTPS.",
+        "startFailed": "The voice session could not start: {{reason}}"
+      }
+    },
+    "companion": {
+      "stop": "End the conversation",
+      "states": {
+        "idle": "Idle",
+        "starting": "Starting",
+        "listening": "Listening",
+        "user_speaking": "Hearing you",
+        "thinking": "Thinking",
+        "speaking": "Speaking",
+        "confirming": "Confirm on screen",
+        "stopping": "Stopping",
+        "error": "Error"
+      }
+    },
+    "hotkey": {
+      "errors": {
+        "empty": "Choose a hotkey.",
+        "modifierOnly": "Add a key to the modifiers (for example Control+Alt+Space).",
+        "rightSideModifier": "Right-side modifiers are not supported for this hotkey.",
+        "multipleKeys": "Use a single key with modifiers.",
+        "needsModifier": "Add at least one modifier, or use a function key.",
+        "windowsReserved": "Windows already uses this shortcut.",
+        "duplicate": "Already used by the {{slot}} hotkey.",
+        "startsWith": "Starts with the {{slot}} hotkey, which would fire too.",
+        "registrationFailed": "Windows refused this shortcut; another application may own it.",
+        "unavailable": "Hotkeys are not available yet."
+      },
+      "warnings": {
+        "powertoysRun": "PowerToys Run uses Alt+Space by default.",
+        "commandPalette": "PowerToys Command Palette uses this shortcut by default."
+      },
+      "unavailableTitle": "Conversation hotkey unavailable",
+      "unavailableBody": "{{hotkey}} is already used by another application. Click to open the conversation settings and pick another hotkey."
+    },
+    "workers": {
+      "confirmTitle": "Start a background task",
+      "confirmMessage": "The assistant wants to start a background task: “{{title}}”.",
+      "detailProject": "Folder: {{cwd}}",
+      "detailPrivacy": "Claude Code will read files and git history in this folder, and nothing else. The instructions and the files it reads are sent to Anthropic.",
+      "detailPrompt": "Instructions:",
+      "accepted": "Background task started: {{title}}.",
+      "cancelled": "The background task was not started.",
+      "missingFields": "A background task needs a title and instructions.",
+      "promptTooLong": "The instructions are too long (at most {{max}} characters).",
+      "unavailable": "Claude Code was not found at {{path}}.",
+      "noProjects": "No project folder is configured for background tasks.",
+      "noMatch": "No single project matches. Known projects: {{names}}.",
+      "refusedFolder": "This folder cannot be used for background tasks.",
+      "timedOut": "Stopped after {{minutes}} minutes.",
+      "denied": "Refused tool use: {{tools}}.",
+      "exitCode": "Claude Code exited with code {{code}}.",
+      "listed": "{{count}} background tasks.",
+      "none": "No background task.",
+      "notFound": "No background task with this id.",
+      "cancelledTask": "Cancelled before it started: {{title}}.",
+      "cancelling": "Stopping: {{title}}.",
+      "alreadyFinished": "Already finished: {{title}}.",
+      "notificationDone": "Background task finished",
+      "notificationFailed": "Background task failed",
+      "spokenDone": "The task “{{title}}” is finished.",
+      "spokenFailed": "The task “{{title}}” failed.",
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "heading": "Background tasks",
+      "cancel": "Cancel",
+      "authRequired": "Claude Code needs you to sign in again: run claude in a terminal, then retry."
+    },
+    "vault": {
+      "notConfigured": "No notes vault is configured.",
+      "emptyQuery": "Give at least one word to search for.",
+      "private": "That note is private.",
+      "notFound": "No such note in the vault.",
+      "refused": "That path cannot be read.",
+      "found": "{{count}} notes found.",
+      "read": "Read {{path}}.",
+      "sensitiveSkipped": "({{count}} private notes were skipped.)",
+      "conflictCopy": "(Sync conflict copy.)",
+      "truncated": "(Note truncated.)"
+    },
+    "mcp": {
+      "unavailable": "The MCP servers are unavailable.",
+      "unknownTool": "Unknown MCP tool: {{name}}.",
+      "confirmTitle": "Let the assistant write through an MCP server",
+      "confirmMessage": "The assistant wants to run “{{tool}}” on the “{{server}}” server.",
+      "detailArguments": "Arguments:",
+      "cancelled": "Cancelled.",
+      "done": "{{tool}} done.",
+      "failed": "{{tool}} failed.",
+      "tokenLabel": "MCP server token (stored encrypted, never read back)",
+      "tokenServerPlaceholder": "server",
+      "tokenPlaceholder": "token",
+      "tokenSaved": "Token saved. Servers with a token: {{servers}}.",
+      "tokenErrors": {
+        "no-encryption": "This system has no secure storage, so no token was saved.",
+        "no-server": "Name the server the token belongs to.",
+        "write-failed": "The token could not be saved."
+      }
+    },
+    "settings": {
+      "enableTitle": "Conversation mode",
+      "enableDescription": "Hold a spoken conversation with a local model: {{hotkey}} opens a session window and a small overlay. Off by default; while it is off, no hotkey is registered and nothing else runs."
+    }
   }
 }

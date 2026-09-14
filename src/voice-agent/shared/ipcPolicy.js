@@ -21,7 +21,9 @@ const OP_RULES = {
   "mcp.list": { session: true },
   "mcp.call": { session: true },
   "mcp.setToken": { session: true },
-  "config.get": { session: true },
+  // settings: the control panel may read and switch the feature on, with no developer flag.
+  "config.get": { session: true, settings: true },
+  "config.setEnabled": { session: true, settings: true },
   "config.setHotkey": { session: true },
   // Development-only probes; their handlers refuse outside NODE_ENV=development.
   "session.debugEvent": { session: true },
@@ -35,6 +37,7 @@ function isOpAllowed({ windowKind, op, toolsInChat }) {
   if (!rule) return false;
   if (windowKind === "session") return !!rule.session;
   if (windowKind === "companion") return !!rule.companion;
+  if (windowKind === "control-panel" && rule.settings) return true;
   if (CHAT_WINDOW_KINDS.has(windowKind)) return !!toolsInChat && !!rule.chat;
   return false;
 }

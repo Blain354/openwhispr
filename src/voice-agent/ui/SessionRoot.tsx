@@ -10,7 +10,6 @@ import {
   shouldPersistVoiceSession,
   voiceMessageMetadata,
 } from "../shared/voiceMetadata.mjs";
-import { ensureConversationBundles } from "./i18n";
 import { registerMcpTools } from "../tools";
 import {
   createVoiceToolRegistry,
@@ -19,8 +18,6 @@ import {
   voiceToolSchemas,
 } from "./toolExecutor";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
-
-ensureConversationBundles();
 
 interface PublicConfig {
   hotkey: string;
@@ -62,10 +59,10 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 const BEGIN_ERROR_KEYS: Record<string, string> = {
-  "sidecar-not-installed": "conversation:session.errors.sidecarNotInstalled",
-  "unsupported-provider": "conversation:session.errors.unsupportedProvider",
-  "invalid-base-url": "conversation:session.errors.invalidBaseUrl",
-  "insecure-base-url": "conversation:session.errors.insecureBaseUrl",
+  "sidecar-not-installed": "conversation.session.errors.sidecarNotInstalled",
+  "unsupported-provider": "conversation.session.errors.unsupportedProvider",
+  "invalid-base-url": "conversation.session.errors.invalidBaseUrl",
+  "insecure-base-url": "conversation.session.errors.insecureBaseUrl",
 };
 
 export default function SessionRoot() {
@@ -92,7 +89,7 @@ export default function SessionRoot() {
   const active = state !== "idle" && state !== "error" && state !== "stopping";
 
   useEffect(() => {
-    document.title = t("conversation:session.title");
+    document.title = t("conversation.session.title");
   }, [t]);
 
   // The voice sidecar opens the microphone outside Electron's process tree; this keeps upstream's
@@ -188,7 +185,7 @@ export default function SessionRoot() {
       setNotice(
         code && BEGIN_ERROR_KEYS[code]
           ? t(BEGIN_ERROR_KEYS[code])
-          : t("conversation:session.errors.startFailed", {
+          : t("conversation.session.errors.startFailed", {
               reason: result.displayText || code || "?",
             })
       );
@@ -312,7 +309,7 @@ export default function SessionRoot() {
       ok: !!result.success,
       lines: [
         result.success
-          ? t("conversation:mcp.tokenSaved", { servers: (result.data?.servers || []).join(", ") })
+          ? t("conversation.mcp.tokenSaved", { servers: (result.data?.servers || []).join(", ") })
           : result.displayText || "Error",
       ],
     });
@@ -326,7 +323,7 @@ export default function SessionRoot() {
       setConfig(result.data);
       setFeedback({
         ok: true,
-        lines: [t("conversation:session.settings.saved"), ...(result.warnings || [])],
+        lines: [t("conversation.session.settings.saved"), ...(result.warnings || [])],
       });
     } else {
       setFeedback({
@@ -345,13 +342,13 @@ export default function SessionRoot() {
         />
         <div className="flex-1">
           <div role="heading" aria-level={1} className="text-sm font-semibold">
-            {t("conversation:session.title")}
+            {t("conversation.session.title")}
           </div>
           <p className="text-xs text-zinc-400" data-testid="conversation-state">
-            {t(`conversation:companion.states.${state}`)}
+            {t(`conversation.companion.states.${state}`)}
             {latencyMs !== null && (
               <span className="ml-2 text-zinc-500" data-testid="conversation-latency">
-                {t("conversation:session.latency", { ms: latencyMs })}
+                {t("conversation.session.latency", { ms: latencyMs })}
               </span>
             )}
           </p>
@@ -362,7 +359,7 @@ export default function SessionRoot() {
             className="rounded-md bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20"
             onClick={() => void invokeConversation("session.interrupt")}
           >
-            {t("conversation:session.interrupt")}
+            {t("conversation.session.interrupt")}
           </button>
         )}
         {active && (
@@ -371,7 +368,7 @@ export default function SessionRoot() {
             className="rounded-md bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20"
             onClick={() => void invokeConversation("session.stop")}
           >
-            {t("conversation:session.stop")}
+            {t("conversation.session.stop")}
           </button>
         )}
       </header>
@@ -390,14 +387,14 @@ export default function SessionRoot() {
           className="border-b border-white/10 px-4 py-2 text-xs"
           data-testid="conversation-tasks"
         >
-          <div className="mb-1 text-zinc-400">{t("conversation:workers.heading")}</div>
+          <div className="mb-1 text-zinc-400">{t("conversation.workers.heading")}</div>
           <ul className="space-y-1">
             {tasks.map((task) => (
               <li key={task.id} className="rounded-md bg-white/5 px-2 py-1.5">
                 <div className="flex items-center gap-2">
                   <span className="flex-1 truncate text-zinc-100">{task.title}</span>
                   <span className="text-zinc-400">
-                    {t(`conversation:workers.status.${task.status}`)}
+                    {t(`conversation.workers.status.${task.status}`)}
                   </span>
                   {(task.status === "queued" || task.status === "running") && (
                     <button
@@ -405,7 +402,7 @@ export default function SessionRoot() {
                       className="rounded bg-white/10 px-2 py-0.5 hover:bg-white/20"
                       onClick={() => void invokeConversation("workers.cancel", { taskId: task.id })}
                     >
-                      {t("conversation:workers.cancel")}
+                      {t("conversation.workers.cancel")}
                     </button>
                   )}
                 </div>
@@ -422,7 +419,7 @@ export default function SessionRoot() {
 
       {!persisted && (
         <p className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
-          {t("conversation:session.notPersisted")}
+          {t("conversation.session.notPersisted")}
         </p>
       )}
 
@@ -431,10 +428,10 @@ export default function SessionRoot() {
           messages={messages}
           emptyState={
             <div className="px-6 py-10 text-center text-sm text-zinc-400">
-              <p>{t("conversation:session.emptyHint")}</p>
+              <p>{t("conversation.session.emptyHint")}</p>
               {config?.hotkey && (
                 <p className="mt-2 text-xs">
-                  {t("conversation:session.hotkeyHint", { hotkey: config.hotkey })}
+                  {t("conversation.session.hotkeyHint", { hotkey: config.hotkey })}
                 </p>
               )}
             </div>
@@ -444,10 +441,10 @@ export default function SessionRoot() {
 
       <details className="border-t border-white/10 px-4 py-3 text-xs">
         <summary className="cursor-pointer text-zinc-300">
-          {t("conversation:session.settings.title")}
+          {t("conversation.session.settings.title")}
         </summary>
         <label className="mt-3 block text-zinc-400" htmlFor="conversation-hotkey">
-          {t("conversation:session.settings.hotkey")}
+          {t("conversation.session.settings.hotkey")}
         </label>
         <div className="mt-1 flex gap-2">
           <input
@@ -462,7 +459,7 @@ export default function SessionRoot() {
             className="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-500"
             onClick={() => void saveHotkey()}
           >
-            {t("conversation:session.settings.save")}
+            {t("conversation.session.settings.save")}
           </button>
         </div>
         {feedback && (
@@ -473,7 +470,7 @@ export default function SessionRoot() {
           </ul>
         )}
         <label className="mt-4 block text-zinc-400" htmlFor="conversation-mcp-server">
-          {t("conversation:mcp.tokenLabel")}
+          {t("conversation.mcp.tokenLabel")}
         </label>
         <div className="mt-1 flex gap-2">
           <input
@@ -481,7 +478,7 @@ export default function SessionRoot() {
             className="w-28 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-zinc-100"
             value={mcpServer}
             onChange={(event) => setMcpServer(event.target.value)}
-            placeholder={t("conversation:mcp.tokenServerPlaceholder")}
+            placeholder={t("conversation.mcp.tokenServerPlaceholder")}
             spellCheck={false}
           />
           <input
@@ -490,7 +487,7 @@ export default function SessionRoot() {
             className="flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-zinc-100"
             value={mcpToken}
             onChange={(event) => setMcpToken(event.target.value)}
-            placeholder={t("conversation:mcp.tokenPlaceholder")}
+            placeholder={t("conversation.mcp.tokenPlaceholder")}
             spellCheck={false}
           />
           <button
@@ -498,15 +495,15 @@ export default function SessionRoot() {
             className="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-500"
             onClick={() => void saveMcpToken()}
           >
-            {t("conversation:session.settings.save")}
+            {t("conversation.session.settings.save")}
           </button>
         </div>
 
         {config && (
           <dl className="mt-3 grid grid-cols-2 gap-1 text-zinc-400">
-            <dt>{t("conversation:session.settings.model")}</dt>
+            <dt>{t("conversation.session.settings.model")}</dt>
             <dd className="text-zinc-200">{config.conversationModel}</dd>
-            <dt>{t("conversation:session.settings.language")}</dt>
+            <dt>{t("conversation.session.settings.language")}</dt>
             <dd className="text-zinc-200">{config.sttLanguage}</dd>
           </dl>
         )}

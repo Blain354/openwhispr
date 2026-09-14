@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Conversation mode (off by default).** A hotkey opens a spoken session with a local model: the microphone goes to local speech-to-text, a local LLM answers, and a local voice speaks it back, in a session window with a small companion overlay. Dictation is untouched and stays blocked while a session runs. Switch it on in Settings → Hotkeys.
+- **What a session can do.** Open an app, focus a window, switch displays, run a PowerShell script after a native confirmation, search and read the user notes vault, call the exact tools of declared MCP servers, and delegate a long read-only task to Claude Code in the background with a spoken acknowledgement and a spoken completion.
+- **Where it runs.** The voice loop runs in a Python sidecar (Pipecat) the user installs separately; Electron owns the session, the windows, the confirmations and the secrets, and talks to it over a token-authenticated loopback WebSocket. Audio and transcripts never leave the machine.
+
 ## [1.10.1] - 2026-09-14
 
 A follow-up to 1.10.0 built from everything that landed since. Notes open straight onto their AI Summary when one exists and the raw tab becomes **Your notes**; the "Enhanced" label is gone in favour of **AI Summary** everywhere, a meeting that ends on its own still offers the summary, and the post-meeting notification is retired. Team spaces get one **Settings** dialog with a built-in emoji picker and a single flat member roster, Teams are called **Groups** in workspace copy, the sidebar gains **Invite your team**, and the tray and dictation pill pick up quick actions. Uploads accept video and nearly every audio container, Windows finds the right microphone again and starts listening sooner, local dictation skips a decode step, and bring-your-own-key Deepgram and AssemblyAI work again. Cleanup no longer pastes a reply the model cut short, whisper.cpp stops dropping words at window boundaries, local models size their context to the request, assistant answers finally render tables, and Reset app data restarts the app so history keeps working.

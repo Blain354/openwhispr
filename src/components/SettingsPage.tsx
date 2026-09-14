@@ -81,6 +81,7 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getPlatform, getCachedPlatform } from "../utils/platform";
 import { formatHotkeyLabel } from "../utils/hotkeys";
+import ConversationModeSetting from "../voice-agent/ui/ConversationModeSetting";
 import {
   getLinuxPasteInstallCommands,
   needsLinuxPasteToolGuidance,
@@ -3965,6 +3966,7 @@ EOF`,
       case "hotkeys":
         return (
           <div className="space-y-6">
+            <ConversationModeSetting />
             {isUsingHyprland && hyprlandConfigStatus && !hyprlandConfigStatus.canWrite && (
               <Alert>
                 <Info className="h-4 w-4" />
