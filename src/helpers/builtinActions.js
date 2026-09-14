@@ -1,14 +1,14 @@
 // Built-in note actions. The database seeds any that are missing on startup and
 // only rewrites a row whose prompt still equals a previous default, so a user's
-// edited prompt is never touched. Generate Notes keeps its original prompt and
-// the generic system-prompt wrapper; the newer built-ins are complete
+// edited prompt is never touched. Generate Notes uses the generic
+// system-prompt wrapper; the newer built-ins are complete
 // instructions and are sent standalone (see STANDALONE_PROMPT_KEYS).
 
 export const GENERATE_NOTES_KEY = "notes.actions.builtin.generateNotes";
 export const DETAILED_NOTES_KEY = "notes.actions.builtin.detailedNotes";
 export const FOLLOW_UP_EMAIL_KEY = "notes.actions.builtin.followUpEmail";
 
-const GENERATE_NOTES_PROMPT =
+const GENERATE_NOTES_PROMPT_1_10_1 =
   "Transform the provided content into clean, well-structured notes in markdown. Preserve the user's intent and all substantive information. Remove filler, small talk, false starts, and redundant content. For personal notes, improve grammar and structure for readability. For meeting transcripts, extract key discussion points, decisions, action items, and follow-ups.";
 
 // Shipped in 1.10.0; kept so rows seeded with it upgrade. Its Owner/Due
@@ -82,7 +82,7 @@ Return only the finished Markdown notes.`;
 // Action items must end in "— Owner" so the editor can turn owners into
 // mention chips (see tagActionItemOwners); a trailing due-date clause would
 // take the owner's place.
-const DETAILED_NOTES_PROMPT = `Convert the provided material into accurate, comprehensive, easy-to-scan notes in Markdown. Priorities, in order: factual accuracy, preservation of specifics, complete coverage of substantive topics, clear decisions and action items, concise presentation.
+const DETAILED_NOTES_PROMPT_1_10_1 = `Convert the provided material into accurate, comprehensive, easy-to-scan notes in Markdown. Priorities, in order: factual accuracy, preservation of specifics, complete coverage of substantive topics, clear decisions and action items, concise presentation.
 
 RULES:
 - Use only information supported by the material. Never invent facts, decisions, owners, deadlines, or names.
@@ -112,6 +112,12 @@ Only actions someone committed to or was asked to do; never turn a discussion to
 Unresolved questions, dependencies, and requested follow-ups.
 
 Return only the finished Markdown notes.`;
+
+// Omitting every unsupported section can otherwise produce a blank completion.
+const NON_SUBSTANTIVE_NOTES_INSTRUCTIONS = `For material with no substantive discussion or notes (for example, only greetings, filler, or recording checks), return one brief factual sentence describing what was captured. If nothing meaningful can be summarized, say "No substantive content was captured." in the requested output language. This rule overrides the section structure and bullet counts above: do not return an empty response or invent topics, decisions, or action items. Consider both the transcript and any manual notes before applying this rule.`;
+
+const GENERATE_NOTES_PROMPT = `${GENERATE_NOTES_PROMPT_1_10_1}\n\n${NON_SUBSTANTIVE_NOTES_INSTRUCTIONS}`;
+const DETAILED_NOTES_PROMPT = `${DETAILED_NOTES_PROMPT_1_10_1}\n\n${NON_SUBSTANTIVE_NOTES_INSTRUCTIONS}`;
 
 const FOLLOW_UP_EMAIL_PROMPT = `You are an expert at writing follow-up emails after meetings. Draft the follow-up email the user ("You") would send to the other participants, based only on the provided meeting material: meeting context, the user's manual notes, and the transcript.
 
@@ -150,7 +156,7 @@ export const BUILTIN_ACTIONS = [
     description: "Clean up, structure, and enhance your notes",
     prompt: GENERATE_NOTES_PROMPT,
     // A pre-release build briefly shipped the detailed prompt under this key.
-    previousPrompts: [DETAILED_NOTES_PROMPT_1_10_0],
+    previousPrompts: [DETAILED_NOTES_PROMPT_1_10_0, GENERATE_NOTES_PROMPT_1_10_1],
     icon: "sparkles",
     sortOrder: 0,
   },
@@ -159,7 +165,7 @@ export const BUILTIN_ACTIONS = [
     name: "Detailed Notes",
     description: "Accurate, comprehensive meeting notes with decisions and action items",
     prompt: DETAILED_NOTES_PROMPT,
-    previousPrompts: [DETAILED_NOTES_PROMPT_1_10_0],
+    previousPrompts: [DETAILED_NOTES_PROMPT_1_10_0, DETAILED_NOTES_PROMPT_1_10_1],
     icon: "sparkles",
     sortOrder: 1,
   },
