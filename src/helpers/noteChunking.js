@@ -117,15 +117,20 @@ export function planNoteChunks(body, budgetTokens) {
   return chunks.filter((chunk) => chunk.trim().length > 0);
 }
 
-/** Halves a chunk on lines, then on words; null when it cannot be split. */
+/** Halves a chunk on lines, words, then code points; null when it cannot be split. */
 export function splitChunkInHalf(chunk) {
+  const characters = Array.from(chunk);
+  if (characters.length < 2) return null;
   const lines = chunk.split("\n");
   if (lines.length >= 2) {
     const middle = Math.ceil(lines.length / 2);
     return [lines.slice(0, middle).join("\n"), lines.slice(middle).join("\n")];
   }
   const words = chunk.split(/\s+/).filter(Boolean);
-  if (words.length < 2) return null;
-  const middle = Math.ceil(words.length / 2);
-  return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+  if (words.length >= 2) {
+    const middle = Math.ceil(words.length / 2);
+    return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+  }
+  const middle = Math.ceil(characters.length / 2);
+  return [characters.slice(0, middle).join(""), characters.slice(middle).join("")];
 }

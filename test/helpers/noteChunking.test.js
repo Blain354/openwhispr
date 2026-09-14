@@ -58,11 +58,31 @@ test("empty and whitespace-only bodies plan to no chunks", async () => {
   assert.deepEqual(planNoteChunks("\n  \n", 100), []);
 });
 
-test("splitChunkInHalf halves on lines, then on words, and gives up on one word", async () => {
+test("splitChunkInHalf prefers line boundaries, then word boundaries", async () => {
   const { splitChunkInHalf } = await load();
   assert.deepEqual(splitChunkInHalf("a\nb\nc\nd"), ["a\nb", "c\nd"]);
   assert.deepEqual(splitChunkInHalf("one two three four"), ["one two", "three four"]);
-  assert.equal(splitChunkInHalf("single"), null);
+});
+
+test("splitChunkInHalf splits unbroken runs without losing Unicode code points", async () => {
+  const { splitChunkInHalf } = await load();
+  for (const text of ["会議".repeat(300), "𠀀𠀁𠀂", "会🚀議", "single"]) {
+    const halves = splitChunkInHalf(text);
+    assert.ok(halves, `could not split ${text.slice(0, 20)}`);
+    assert.equal(halves.join(""), text);
+    assert.deepEqual(
+      halves.map((half) => Array.from(half).length),
+      [Math.ceil(Array.from(text).length / 2), Math.floor(Array.from(text).length / 2)]
+    );
+    for (const half of halves) assert.ok(half.isWellFormed());
+  }
+});
+
+test("splitChunkInHalf gives up only on empty or single-code-point chunks", async () => {
+  const { splitChunkInHalf } = await load();
+  for (const text of ["", "a", "会", "𠀀", "🚀", " ", "\n"]) {
+    assert.equal(splitChunkInHalf(text), null);
+  }
 });
 
 test("the estimate agrees with llamaContextPolicy on Latin, CJK and mixed text", async () => {

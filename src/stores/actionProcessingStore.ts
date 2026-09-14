@@ -29,8 +29,7 @@ export const NOTE_OUTPUT_MAX_TOKENS = 4096;
 export const PART_NOTES_MAX_TOKENS = 2048;
 
 // Mirrors CONTEXT_RESERVE_TOKENS in modelManagerBridge: slack the main process
-// keeps on top of the output reservation. Counted here so the fit test and the
-// server's own preflight agree.
+// keeps on top of the output reservation when budgeting each part.
 const CONTEXT_RESERVE_TOKENS = 512;
 // Parts are packed to this share of the room left after the fixed pieces, so
 // the exact tokenizer can run a little hotter than the estimate without a part
@@ -183,7 +182,7 @@ These notes will be merged with the notes from the other parts afterwards.`;
 
 const MERGE_ADDENDUM = `
 
-The material is not a transcript. It is working notes written from the consecutive parts of one long recording, in order, each under a "## Notes from part N of M" heading. Treat them together as the complete record of that recording and apply the instructions above to the merged whole. Completeness outranks brevity here: every decision, commitment, action item, number, date, amount and deadline recorded in any part, including the first parts, must appear in the final notes, and they may be as long as that requires. Remove only repetition across parts. Do not mention the parts or the merging.`;
+The material includes ordered working notes from consecutive parts of the user's source, each under a "## Notes from part N of M" heading. Manual notes and meeting context may precede them. Consider all parts together and apply the instructions above, including their requested scope, format, and length. Preserve relevant facts accurately and consolidate repetition. Do not mention the parts or the merging.`;
 
 interface EnhancementRun {
   noteId: number;
@@ -226,39 +225,26 @@ function tooLongForModel(modelName: string): LocalInferenceError {
   return error;
 }
 
-const fitsWindow = (
-  systemPrompt: string,
-  content: string,
-  outputTokens: number,
-  budget: LocalContextBudget
-) =>
-  estimateNoteTokens(systemPrompt) +
-    estimateNoteTokens(content) +
-    outputTokens +
-    CONTEXT_RESERVE_TOKENS <=
-  budget.maxContextTokens;
-
 /**
  * One request when the material fits the local window (or on any route the
  * budget does not apply to); parts-then-merge when it does not (#2142).
  */
 async function runEnhancement(run: EnhancementRun): Promise<string> {
-  const single = () =>
+  const single = (): Promise<string> =>
     reasoningService.processText(run.noteContent, run.modelId, null, run.requestConfig);
   if (!run.isLocalRoute) return single();
 
   const budget = await readLocalContextBudget(run.modelId);
   if (!budget) return single();
 
-  if (fitsWindow(run.systemPrompt, run.noteContent, NOTE_OUTPUT_MAX_TOKENS, budget)) {
-    try {
-      return await single();
-    } catch (error) {
-      // The exact tokenizer can disagree with the estimate; that is a reason
-      // to split, not to fail.
-      if (!isContextTooLarge(error)) throw error;
-    }
+  try {
+    // The main-process preflight measures the prompt and can grant a smaller
+    // reply. A conservative estimate must not replace a request it can serve.
+    return await single();
+  } catch (error) {
+    if (!isContextTooLarge(error)) throw error;
   }
+  if (isCancelled(run.noteId)) throw new Error("cancelled");
   return runInParts(run, budget);
 }
 
@@ -317,7 +303,7 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
 
   const mergeSystemPrompt = run.systemPrompt + MERGE_ADDENDUM;
   let sections = partNotes;
-  for (let round = 0; round < MAX_REDUCE_ROUNDS; round += 1) {
+  for (let round = 0; round <= MAX_REDUCE_ROUNDS; round += 1) {
     if (isCancelled(run.noteId)) throw new Error("cancelled");
     setNoteState(run.noteId, { progress: { step: total, total } });
     const mergeContent = [
@@ -329,12 +315,15 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
     ]
       .filter(Boolean)
       .join("\n\n");
-    if (fitsWindow(mergeSystemPrompt, mergeContent, NOTE_OUTPUT_MAX_TOKENS, budget)) {
-      return reasoningService.processText(mergeContent, run.modelId, null, {
+    try {
+      return await reasoningService.processText(mergeContent, run.modelId, null, {
         ...run.requestConfig,
         systemPrompt: mergeSystemPrompt,
       });
+    } catch (error) {
+      if (!isContextTooLarge(error)) throw error;
     }
+    if (round === MAX_REDUCE_ROUNDS) break;
     // Too many part-notes for one pass: consolidate neighbouring parts and go again.
     const groups = planNoteChunks(sections.join("\n\n"), chunkBudget);
     const consolidated: string[] = [];
@@ -344,7 +333,6 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
         await summarisePart(groups[index], `Working notes (part ${index + 1} of ${groups.length})`)
       );
     }
-    if (consolidated.length >= sections.length) break;
     sections = consolidated;
   }
   throw tooLongForModel(budget.modelName);

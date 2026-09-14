@@ -12,7 +12,10 @@ const BIG_BUDGET = { success: true, maxContextTokens: 131072, modelName: "Qwen3.
 // 8192 leaves roughly 4,400 tokens per part after the part prompt and output reserve.
 const SMALL_BUDGET = { success: true, maxContextTokens: 8192, modelName: "Qwen3.5 9B" };
 
-async function loadStore(t, { budget = SMALL_BUDGET, mode = "local", failFirst = false } = {}) {
+async function loadStore(
+  t,
+  { budget = SMALL_BUDGET, mode = "local", failFirst = false, processText } = {}
+) {
   const updates = [];
   const budgetCalls = [];
   installBrowserGlobals(t, {
@@ -50,6 +53,9 @@ async function loadStore(t, { budget = SMALL_BUDGET, mode = "local", failFirst =
             if (globalThis.__cancelAfter && calls.length === globalThis.__cancelAfter.after) {
               globalThis.__cancelAfter.cancel();
             }
+            if (globalThis.__processTextResponse) {
+              return globalThis.__processTextResponse(text, config);
+            }
             return "# Part notes " + calls.length + "\\n- decided things";
           },
         };
@@ -59,9 +65,11 @@ async function loadStore(t, { budget = SMALL_BUDGET, mode = "local", failFirst =
   });
   globalThis.__processTextCalls = calls;
   globalThis.__failFirst = failFirst;
+  globalThis.__processTextResponse = processText;
   t.after(() => {
     delete globalThis.__processTextCalls;
     delete globalThis.__failFirst;
+    delete globalThis.__processTextResponse;
     delete globalThis.__cancelAfter;
   });
 
@@ -83,14 +91,14 @@ const longMaterial = (lines) => ({
   transcript: LINE.repeat(lines).trim(),
 });
 
-const run = (store, noteId, material, options = {}) =>
+const run = (store, noteId, material, options = {}, action = ACTION) =>
   store.runBackgroundAction(
     noteId,
     [material.notes, material.meetingContext, `## Meeting Transcript\n${material.transcript}`].join(
       "\n\n"
     ),
     "hash",
-    ACTION,
+    action,
     { modelId: "qwen3.5-9b-q4_k_m", isCloudMode: false, isMeetingNote: true, material, ...options },
     LABELS
   );
@@ -114,13 +122,13 @@ test("cloud mode never reads the budget and never chunks", async (t) => {
   assert.deepEqual(budgetCalls, []);
 });
 
-test("material over the ceiling is summarised in parts, then merged with the action prompt", async (t) => {
-  const { store, calls, updates } = await loadStore(t);
+test("refused material is summarised in parts, then merged with the action prompt", async (t) => {
+  const { store, calls, updates } = await loadStore(t, { failFirst: true });
   const material = longMaterial(400);
   run(store, 3, material);
   await waitFor(() => updates.length > 0, "save");
 
-  const parts = calls.slice(0, -1);
+  const parts = calls.slice(1, -1);
   const final = calls[calls.length - 1];
   assert.ok(parts.length >= 2, `expected several parts, got ${parts.length}`);
   parts.forEach((call, index) => {
@@ -150,7 +158,7 @@ test("material over the ceiling is summarised in parts, then merged with the act
       final.text.includes(`## Notes from part ${index} of ${parts.length}`),
       `part ${index} notes present`
     );
-    assert.ok(final.text.includes(`# Part notes ${index}`));
+    assert.ok(final.text.includes(`# Part notes ${index + 1}`));
   }
   assert.ok(!final.text.includes("Alice: we agreed"), "final pass never sees the raw transcript");
   assert.equal(
@@ -175,17 +183,17 @@ test("a single request refused as CONTEXT_TOO_LARGE falls through to chunking", 
 });
 
 test("cancelling between parts stops further requests and saves nothing", async (t) => {
-  const { store, calls, updates } = await loadStore(t);
-  globalThis.__cancelAfter = { after: 1, cancel: () => store.cancelAction(6) };
+  const { store, calls, updates } = await loadStore(t, { failFirst: true });
+  globalThis.__cancelAfter = { after: 2, cancel: () => store.cancelAction(6) };
   run(store, 6, longMaterial(400));
-  await waitFor(() => calls.length >= 1, "first part");
+  await waitFor(() => calls.length >= 2, "first part");
   await new Promise((resolve) => setTimeout(resolve, 200));
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
   assert.equal(updates.length, 0);
 });
 
 test("progress counts parts and ends on the final pass", async (t) => {
-  const { store, updates } = await loadStore(t);
+  const { store, updates } = await loadStore(t, { failFirst: true });
   const seen = [];
   const unsubscribe = store.useActionProcessingStore.subscribe((state) => {
     const progress = state.noteStates[7]?.progress;
@@ -198,4 +206,202 @@ test("progress counts parts and ends on the final pass", async (t) => {
   const [step, total] = seen[seen.length - 1].split("/").map(Number);
   assert.equal(step, total);
   assert.equal(seen[0], `1/${total}`);
+});
+
+async function waitForResult(store, updates) {
+  await waitFor(
+    () => updates.length > 0 || store.useActionProcessingStore.getState().errorEvents.length > 0,
+    "save or failure"
+  );
+}
+
+const overflow = () => Object.assign(new Error("too big"), { code: "CONTEXT_TOO_LARGE" });
+const FLOOR_BUDGET = { success: true, maxContextTokens: 16384, modelName: "Local model" };
+
+test("a conservative overestimate preserves the original request when the model accepts it", async (t) => {
+  const { store, calls, updates } = await loadStore(t, { budget: FLOOR_BUDGET });
+  const material = { notes: LINE.repeat(600), meetingContext: "", transcript: "Alice: Hello." };
+  run(store, 8, material);
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].text.includes(material.notes));
+  assert.equal(calls[0].config.maxTokens, 4096);
+});
+
+test("an exact-token overflow at the final merge reduces the existing part notes and saves", async (t) => {
+  let reduced = false;
+  const { store, calls, updates } = await loadStore(t, {
+    budget: FLOOR_BUDGET,
+    failFirst: true,
+    processText: (text, config) => {
+      if (text.includes("## Working notes")) {
+        reduced = true;
+        return "Alice owns QA; Bob owns release.";
+      }
+      if (config.maxTokens === 4096) {
+        if (!reduced) throw overflow();
+        return "- [ ] QA — Alice\n- [ ] Release — Bob";
+      }
+      return "Alice owns QA. Bob owns release.";
+    },
+  });
+  run(store, 9, longMaterial(1400));
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].payload.enhanced_content, "- [ ] QA — Alice\n- [ ] Release — Bob");
+  assert.equal(calls.filter((call) => call.text.includes("## Working notes")).length, 1);
+  assert.equal(calls.filter((call) => call.config.maxTokens === 4096).length, 3);
+  assert.ok(calls.at(-1).text.includes("Alice owns QA; Bob owns release."));
+});
+
+test("a shorter consolidation is usable even when its section count stays the same", async (t) => {
+  let reductions = 0;
+  const { store, calls, updates } = await loadStore(t, {
+    budget: FLOOR_BUDGET,
+    failFirst: true,
+    processText: (text, config) => {
+      if (text.includes("## Working notes")) {
+        reductions += 1;
+        return reductions === 1 ? "detail ".repeat(750) : "Alice owns QA.";
+      }
+      if (config.maxTokens === 4096) {
+        if (text.includes("detail")) throw overflow();
+        return "- [ ] QA — Alice";
+      }
+      return "detail ".repeat(750);
+    },
+  });
+  const material = {
+    notes: "manual note ".repeat(2325),
+    meetingContext: "",
+    transcript: LINE.repeat(1400),
+  };
+  run(store, 10, material);
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  assert.equal(reductions, 2);
+  assert.ok(calls.at(-1).text.includes(material.notes));
+  assert.ok(calls.at(-1).text.includes("Alice owns QA."));
+});
+
+test("the last allowed consolidation still gets a final merge attempt", async (t) => {
+  let reductions = 0;
+  const { store, updates } = await loadStore(t, {
+    failFirst: true,
+    processText: (text, config) => {
+      if (text.includes("## Working notes")) reductions += 1;
+      if (config.maxTokens === 4096) {
+        if (reductions < 3) throw overflow();
+        return "Final notes";
+      }
+      return "Working notes";
+    },
+  });
+  run(store, 11, longMaterial(20));
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  assert.equal(reductions, 3);
+});
+
+test("repeated merge overflows stop after three consolidations and name the model", async (t) => {
+  let reductions = 0;
+  const { store, calls, updates } = await loadStore(t, {
+    failFirst: true,
+    processText: (text, config) => {
+      if (text.includes("## Working notes")) reductions += 1;
+      if (config.maxTokens === 4096) throw overflow();
+      return "Working notes";
+    },
+  });
+  run(store, 12, longMaterial(20));
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 0);
+  assert.equal(reductions, 3);
+  assert.equal(calls.filter((call) => call.config.maxTokens === 4096).length, 5);
+  const [error] = store.consumeErrorEvents();
+  assert.equal(error.messageKey, "models.errors.contextTooLargeGeneric");
+  assert.deepEqual(error.messageParams, { model: "Qwen3.5 9B" });
+});
+
+test("a non-context merge error is reported without retrying", async (t) => {
+  const { store, calls, updates } = await loadStore(t, {
+    failFirst: true,
+    processText: (text, config) => {
+      if (config.maxTokens === 4096) throw new Error("model unavailable");
+      return "Working notes";
+    },
+  });
+  run(store, 13, longMaterial(20));
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 0);
+  assert.equal(store.consumeErrorEvents()[0].message, "model unavailable");
+  assert.equal(
+    calls.some((call) => call.text.includes("## Working notes")),
+    false
+  );
+});
+
+test("cancelling a failed merge prevents further consolidation and saving", async (t) => {
+  const { store, calls, updates } = await loadStore(t, {
+    failFirst: true,
+    processText: (text, config) => {
+      if (config.maxTokens === 4096) {
+        store.cancelAction(14);
+        throw overflow();
+      }
+      return "Working notes";
+    },
+  });
+  run(store, 14, longMaterial(20));
+  await waitFor(() => calls.length === 3, "failed merge");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(updates.length, 0);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(store.consumeErrorEvents(), []);
+});
+
+test("an unbroken CJK part rejected by the tokenizer is split and merged without losing text", async (t) => {
+  const accepted = [];
+  const { store, updates } = await loadStore(t, {
+    budget: FLOOR_BUDGET,
+    failFirst: true,
+    processText: (text, config) => {
+      if (config.maxTokens === 4096) return "Final notes";
+      const characters = (text.match(/𠀀/gu) || []).join("");
+      if ([...characters].length > 7000) throw overflow();
+      accepted.push(characters);
+      return "Working notes";
+    },
+  });
+  const body = "𠀀".repeat(14000);
+  run(store, 15, { notes: body, meetingContext: "", transcript: "" }, { isMeetingNote: false });
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  assert.equal(accepted.join(""), body);
+});
+
+test("the merge preserves a follow-up email action without imposing exhaustive notes", async (t) => {
+  const { BUILTIN_ACTIONS } = await import("../../src/helpers/builtinActions.js");
+  const email = BUILTIN_ACTIONS.find(
+    (action) => action.translationKey === "notes.actions.builtin.followUpEmail"
+  );
+  const { store, calls, updates } = await loadStore(t, { failFirst: true });
+  run(
+    store,
+    16,
+    longMaterial(20),
+    {},
+    {
+      id: 2,
+      name: email.name,
+      prompt: email.prompt,
+      translation_key: email.translationKey,
+    }
+  );
+  await waitForResult(store, updates);
+  assert.equal(updates.length, 1);
+  const prompt = calls.at(-1).config.systemPrompt;
+  assert.ok(prompt.includes(email.prompt));
+  assert.doesNotMatch(prompt, /Completeness outranks brevity|as long as that requires/);
 });
