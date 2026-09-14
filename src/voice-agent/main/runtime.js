@@ -5,11 +5,13 @@
 // storage) and which tools it offers; the main process starts everything, owns the secrets, and
 // routes what the sidecar sends: state changes to the session state machine, transcripts and
 // replies to both windows, tool calls to the session window only.
+const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { createConversationWsServer } = require("./wsServer");
 const { createSidecarManager, READY_TIMEOUT_MS } = require("./sidecarManager");
 const { redact } = require("./redact");
+const { projectCandidates } = require("../shared/workerArgv");
 
 const HELLO_TIMEOUT_MS = 30_000;
 const WHISPER_MODEL = "deepdml/faster-whisper-large-v3-turbo-ct2";
@@ -28,9 +30,30 @@ const SYSTEM_PROMPT = [
   "Réponds dans la langue de l'utilisateur, en une à trois phrases courtes et naturelles à l'oral.",
   "Pas de markdown, pas de listes, pas d'émojis ; ne lis jamais d'URL, de chemin de fichier ou de code à voix haute.",
   "Utilise les outils quand l'utilisateur demande une action sur son ordinateur ou dans ses notes.",
+  "Une demande qui porte sur un projet, du code, des commits ou des fichiers passe par delegate_task, jamais par une réponse de mémoire.",
   "Les actions sensibles demandent une confirmation à l'écran : dans ce cas dis simplement « Confirme à l'écran ».",
   "N'affirme jamais qu'une action a réussi si le résultat de l'outil ne le dit pas.",
 ].join(" ");
+
+/**
+ * Proper nouns Whisper should hear correctly: the app and the configured project folders.
+ * Whisper transcribed "blain-infra" as "Blin Infra" without them.
+ */
+function hotwordsFor(config, listDirs) {
+  const names = projectCandidates(config.workerProjectRoots || [], listDirs).map((c) => c.name);
+  return [...new Set(["OpenWhispr", ...names])].slice(0, 12).join(", ");
+}
+
+function listProjectDirs(parent) {
+  try {
+    return fs
+      .readdirSync(parent, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
 
 function kokoroPaths() {
   const dir = path.join(os.homedir(), ".cache", "openwhispr", "conversation", "kokoro");
@@ -240,6 +263,7 @@ function createConversationRuntime({
           tools: selectVoiceTools(tools),
           systemPrompt: SYSTEM_PROMPT,
           sttLanguage: config.sttLanguage,
+          hotwords: hotwordsFor(config, listProjectDirs),
           bargeIn: config.bargeIn,
           whisperModel: WHISPER_MODEL,
           kokoro: { ...kokoroPaths(), voice: "ff_siwis", language: "fr-fr" },
@@ -311,6 +335,7 @@ module.exports = {
   routeSidecarMessage,
   resolveLlmEndpoint,
   harnessArgs,
+  hotwordsFor,
   SYSTEM_PROMPT,
   WHISPER_MODEL,
 };

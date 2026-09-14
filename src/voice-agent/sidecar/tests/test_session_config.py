@@ -25,6 +25,7 @@ def test_a_local_session_config_is_parsed_with_safe_defaults():
     assert cfg.barge_in == "mute"
     assert cfg.kokoro_voice == "ff_siwis" and cfg.kokoro_language == "fr-fr"
     assert cfg.tools == ()
+    assert cfg.hotwords == ""
 
 
 def test_endpoints_must_be_loopback_for_local_models_and_https_for_remote_ones():
@@ -64,3 +65,15 @@ def test_tool_specs_keep_valid_unique_tools_up_to_the_cap():
         "required": ["name"],
     }
     assert specs[1] == {"name": "tool_0", "description": "", "properties": {}, "required": []}
+
+
+def test_hotwords_are_kept_bounded():
+    cfg = parse_session_config(
+        {
+            "llm": {"baseURL": "http://127.0.0.1:8222/v1", "local": True},
+            "hotwords": "OpenWhispr, blain-infra, " + "x" * 400,
+            "kokoro": KOKORO,
+        }
+    )
+    assert cfg.hotwords.startswith("OpenWhispr, blain-infra")
+    assert len(cfg.hotwords) == 300

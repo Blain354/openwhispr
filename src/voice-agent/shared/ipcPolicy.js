@@ -13,6 +13,9 @@ const OP_RULES = {
   "session.begin": { session: true },
   "session.toolResult": { session: true },
   "session.interrupt": { session: true, companion: true },
+  "workers.delegate": { session: true },
+  "workers.list": { session: true },
+  "workers.cancel": { session: true },
   "config.get": { session: true },
   "config.setHotkey": { session: true },
   // Development-only probes; their handlers refuse outside NODE_ENV=development.

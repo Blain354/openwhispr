@@ -113,3 +113,16 @@ test("only the session window can begin a session or answer a tool call", () => 
     true
   );
 });
+
+test("background workers are reachable from the voice session only", () => {
+  for (const op of ["workers.delegate", "workers.list", "workers.cancel"]) {
+    assert.equal(isOpAllowed({ windowKind: "session", op, toolsInChat: false }), true, op);
+    for (const windowKind of ["companion", "main", "control-panel"]) {
+      assert.equal(
+        isOpAllowed({ windowKind, op, toolsInChat: true }),
+        false,
+        `${windowKind} ${op}`
+      );
+    }
+  }
+});

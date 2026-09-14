@@ -13,6 +13,14 @@ const DEFAULTS = Object.freeze({
   sttLanguage: "auto",
   bargeIn: "mute",
   confirmDelegation: true,
+  // Background workers: project folders (a folder, or "parent/*" for its sub-folders), the notes
+  // vault they must never touch, the Claude Code executable (empty: ~/.local/bin/claude) and a
+  // spending cap per task.
+  workerProjectRoots: Object.freeze([]),
+  vaultRoot: "",
+  vaultExcluded: Object.freeze([]),
+  claudePath: "",
+  workerBudgetUsd: 2,
 });
 
 function parseBooleanEnv(value) {
@@ -46,6 +54,27 @@ function sanitize(raw) {
   }
   if (raw.bargeIn === "mute" || raw.bargeIn === "voice") out.bargeIn = raw.bargeIn;
   if (typeof raw.confirmDelegation === "boolean") out.confirmDelegation = raw.confirmDelegation;
+  if (Array.isArray(raw.workerProjectRoots)) {
+    out.workerProjectRoots = raw.workerProjectRoots
+      .filter((root) => typeof root === "string" && root.trim())
+      .map((root) => root.trim())
+      .slice(0, 20);
+  }
+  if (typeof raw.vaultRoot === "string") out.vaultRoot = raw.vaultRoot.trim();
+  if (Array.isArray(raw.vaultExcluded)) {
+    out.vaultExcluded = raw.vaultExcluded
+      .filter((name) => typeof name === "string" && name.trim())
+      .map((name) => name.trim())
+      .slice(0, 40);
+  }
+  if (typeof raw.claudePath === "string") out.claudePath = raw.claudePath.trim();
+  if (
+    typeof raw.workerBudgetUsd === "number" &&
+    raw.workerBudgetUsd > 0 &&
+    raw.workerBudgetUsd <= 20
+  ) {
+    out.workerBudgetUsd = raw.workerBudgetUsd;
+  }
   return out;
 }
 
@@ -55,6 +84,12 @@ function loadConfig(userDataDir, env = process.env) {
   const toolsInChatEnv = parseBooleanEnv(env.OW_CONVERSATION_TOOLS_IN_CHAT);
   if (enabledEnv !== undefined) config.enabled = enabledEnv;
   if (toolsInChatEnv !== undefined) config.toolsInChat = toolsInChatEnv;
+  if (env.OW_CONVERSATION_WORKER_ROOTS) {
+    config.workerProjectRoots = sanitize({
+      workerProjectRoots: env.OW_CONVERSATION_WORKER_ROOTS.split(path.delimiter),
+    }).workerProjectRoots;
+  }
+  if (env.OW_CONVERSATION_VAULT_ROOT) config.vaultRoot = env.OW_CONVERSATION_VAULT_ROOT.trim();
   return config;
 }
 

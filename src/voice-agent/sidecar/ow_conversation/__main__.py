@@ -47,6 +47,7 @@ async def run(args: argparse.Namespace) -> int:
 
         stt, llm, tts = bot.build_services(cfg, args.device)
         load_ms = round((time.perf_counter() - started) * 1000)
+        warm_ms = round(await bot.warm_llm(cfg) * 1000)
     except Exception as exc:  # noqa: BLE001 - reported to OpenWhispr, then exit
         logger.exception("Voice engine failed to start")
         await link.send("error", {"message": f"voice engine failed to start: {exc}", "fatal": True})
@@ -65,7 +66,12 @@ async def run(args: argparse.Namespace) -> int:
         llm,
         tts,
         transport_factory=transport_factory,
-        ready_data={"device": args.device, "loadMs": load_ms, "wavInput": bool(args.wav_input)},
+        ready_data={
+            "device": args.device,
+            "loadMs": load_ms,
+            "llmWarmMs": warm_ms,
+            "wavInput": bool(args.wav_input),
+        },
     )
     await voice_bot.run()
     return 0

@@ -36,6 +36,7 @@ from pipecat.frames.frames import (
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,
 )
+from pipecat.frames.frames import FunctionCallResultProperties
 from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.observers.user_bot_latency_observer import LatencyBreakdown, UserBotLatencyObserver
 from pipecat.pipeline.pipeline import Pipeline
@@ -64,10 +65,13 @@ from .link import Link
 from .metrics import LevelMeter, latency_payload
 from .mute import SessionMuteStrategy
 from .session_config import SessionConfig
-from .tools_bridge import CONFIRMABLE_TOOLS, ToolBridge
+from .text_aggregator import FirstClauseTextAggregator
+from .tools_bridge import CONFIRMABLE_TOOLS, SPOKEN_ACKS, ToolBridge
 
 CONFIRM_PHRASE = "Confirme à l'écran."
 NO_SPEECH_PROB = 0.6
+# Silence after the VAD stop before the turn ends. 0.6 s measured ~320 ms of turn-end latency.
+TURN_STOP_TIMEOUT_SECS = 0.4
 TOOL_TIMEOUT_SECS = 200.0
 
 # (input processor, output processor, close callback)
@@ -97,7 +101,15 @@ class ThreadedWhisperSTTService(WhisperSTTService):
         model = self._model
 
         def decode() -> tuple[str, Any]:
-            segments, info = model.transcribe(audio_float, language=language, hotwords=hotwords)
+            # Short voice turns: greedy decoding, no timestamps, no conditioning on earlier text.
+            segments, info = model.transcribe(
+                audio_float,
+                language=language,
+                hotwords=hotwords,
+                beam_size=1,
+                without_timestamps=True,
+                condition_on_previous_text=False,
+            )
             kept = [
                 s.text.strip()
                 for s in segments
@@ -267,6 +279,7 @@ def build_services(cfg: SessionConfig, device: str):
             model=cfg.whisper_model,
             language=_language(cfg.stt_language),
             no_speech_prob=NO_SPEECH_PROB,
+            hotwords=cfg.hotwords or None,
         ),
     )
     stt.warm_up()
@@ -297,9 +310,58 @@ def build_services(cfg: SessionConfig, device: str):
             speed=1.0,
         ),
     )
+    # TTSService builds its aggregator internally (tts_service.py:330) with no parameter to replace
+    # it: swap it so a long first sentence does not hold back the first audio.
+    tts._text_aggregator = FirstClauseTextAggregator(aggregation_type=tts._text_aggregation_mode)
     # Private attribute (kokoro/tts.py:212): a first synthesis loads espeak and the ONNX graph.
     tts._kokoro.create("Bonjour.", voice=cfg.kokoro_voice, lang=cfg.kokoro_language)
     return stt, llm, tts
+
+
+async def warm_llm(cfg: SessionConfig) -> float:
+    """Make the model server process the system prompt and the tool schemas once, up front.
+
+    Measured on the first five-turn run: the first request of a session spent 8.8 s before its
+    first token, all of it prompt processing. Sending the same prefix during startup moves that
+    cost out of the first spoken turn. Returns the seconds it took.
+    """
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=cfg.llm_api_key or "sk-local", base_url=cfg.llm_base_url, max_retries=0)
+    request: dict[str, Any] = {
+        "model": cfg.llm_model,
+        "messages": [
+            {"role": "system", "content": cfg.system_prompt},
+            {"role": "user", "content": "ping"},
+        ],
+        "max_completion_tokens": 1,
+    }
+    if cfg.tools:
+        request["tools"] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": spec["name"],
+                    "description": spec["description"],
+                    "parameters": {
+                        "type": "object",
+                        "properties": spec["properties"],
+                        "required": spec["required"],
+                    },
+                },
+            }
+            for spec in cfg.tools
+        ]
+    if cfg.llm_local:
+        request["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+    started = time.perf_counter()
+    try:
+        await client.chat.completions.create(**request)
+    except Exception as exc:  # noqa: BLE001 - a cold start is not worth failing the session
+        logger.warning(f"LLM warm-up failed: {exc}")
+    finally:
+        await client.close()
+    return time.perf_counter() - started
 
 
 def _local_audio_transport() -> tuple[FrameProcessor, FrameProcessor, Callable[[], None]]:
@@ -345,7 +407,7 @@ class VoiceBot:
                 user_turn_strategies=UserTurnStrategies(
                     start=[VADUserTurnStartStrategy(), TranscriptionUserTurnStartStrategy()],
                     # Explicit stop strategy: the default loads Smart Turn v3 (English-tuned).
-                    stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=0.6)],
+                    stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=TURN_STOP_TIMEOUT_SECS)],
                 ),
                 user_mute_strategies=[self.mute, FunctionCallUserMuteStrategy()],
             ),
@@ -421,14 +483,17 @@ class VoiceBot:
         @assistant_aggregator.event_handler("on_assistant_turn_stopped")
         async def _on_assistant_turn(_aggregator, message):
             spoken = (message.content or "").strip()
-            self._emitter.emit(
-                "assistant.final",
-                {
-                    "text": self._observer.take_reply() or spoken,
-                    "spokenText": spoken,
-                    "interrupted": bool(message.interrupted),
-                },
-            )
+            text = self._observer.take_reply() or spoken
+            # A turn that only called a tool has no text of its own: nothing to show or store.
+            if text or spoken:
+                self._emitter.emit(
+                    "assistant.final",
+                    {
+                        "text": text,
+                        "spokenText": spoken,
+                        "interrupted": bool(message.interrupted),
+                    },
+                )
             self._emitter.emit("state", {"event": "turn.idle"})
 
     async def _on_tool_call(self, params: FunctionCallParams) -> None:
@@ -436,14 +501,22 @@ class VoiceBot:
         confirmable = name in CONFIRMABLE_TOOLS
         if confirmable:
             self._emitter.emit("state", {"event": "confirm.requested", "tool": name})
-            await params.llm.push_frame(TTSSpeakFrame(CONFIRM_PHRASE, append_to_context=False))
+            phrase = SPOKEN_ACKS.get(name, CONFIRM_PHRASE)
+            await params.llm.push_frame(TTSSpeakFrame(phrase, append_to_context=False))
         try:
             outcome = await self.tools.call(name, dict(params.arguments))
         finally:
             if confirmable:
                 self._emitter.emit("state", {"event": "confirm.resolved", "tool": name})
+        result = {"success": outcome.success, "result": outcome.text}
+        if name == "delegate_task" and outcome.success:
+            # Already acknowledged aloud; completion is announced by OpenWhispr.
+            await params.result_callback(
+                result, properties=FunctionCallResultProperties(run_llm=False)
+            )
+            return
         # A truthy result makes the LLM answer with it (llm_response_universal.py:1922).
-        await params.result_callback({"success": outcome.success, "result": outcome.text})
+        await params.result_callback(result)
 
     def _handlers(self) -> dict[str, Callable[[dict[str, Any]], Any]]:
         async def say(message):

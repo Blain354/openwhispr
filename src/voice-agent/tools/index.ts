@@ -2,6 +2,7 @@ import type { ToolRegistry } from "../../services/tools/ToolRegistry";
 import { getSettings, selectResolvedLLMConfig } from "../../stores/settingsStore";
 import { shouldOfferOsTools } from "./gating";
 import { createOsTools } from "./os";
+import { createWorkerTools } from "./workers";
 
 function currentModes(): string[] {
   const settings = getSettings();
@@ -30,5 +31,12 @@ export function registerConversationTools(registry: ToolRegistry, _settings?: un
   if (!osToolsAllowedNow()) return;
   for (const tool of createOsTools(osToolsAllowedNow)) {
     registry.register(tool);
+  }
+  // Background workers send instructions to Anthropic: voice session only, never upstream chats.
+  const inSession = () => window.conversationAPI?.bootstrap.windowKind === "session";
+  if (inSession()) {
+    for (const tool of createWorkerTools(inSession)) {
+      registry.register(tool);
+    }
   }
 }

@@ -59,7 +59,7 @@ here.
 
 | Type             | `data`                                                                                                                                                                                                                                                                 |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session.config` | `llm` (`baseURL`, `model`, `local`), `tools` (name, description, JSON-schema `parameters`; at most 12), `systemPrompt`, `sttLanguage` (`auto`, `fr`, `en`), `bargeIn` (`mute`, `interrupt`), `whisperModel`, `kokoro` (`modelPath`, `voicesPath`, `voice`, `language`) |
+| `session.config` | `llm` (`baseURL`, `model`, `local`), `tools` (name, description, JSON-schema `parameters`; at most 12), `systemPrompt`, `sttLanguage` (`auto`, `fr`, `en`), `hotwords` (proper nouns for Whisper: the app and the configured project folders), `bargeIn` (`mute`, `interrupt`), `whisperModel`, `kokoro` (`modelPath`, `voicesPath`, `voice`, `language`) |
 | `tool.result`    | `success`, `text`; `id` of the call on the envelope                                                                                                                                                                                                                    |
 | `say`            | `text`, spoken without entering the LLM context                                                                                                                                                                                                                        |
 | `interrupt`      | —                                                                                                                                                                                                                                                                      |
@@ -76,3 +76,16 @@ confirmation for `set_displays` and `run_powershell`) and answers through `sessi
 The sidecar waits up to 180 s, then sends `tool.cancel`. Tools that need a confirmation make the
 sidecar say "Confirme à l'écran." while the dialog is open; the microphone stays muted until the
 result arrives.
+
+## Window events (not on the socket)
+
+The main process also broadcasts events to the session window and the companion that do not come
+from the sidecar:
+
+| Type          | `data`                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `state`       | `state`, `event` (session state machine, owned by the main process)                                            |
+| `task.update` | a background task: `id`, `title`, `project`, `status`, `progress`, `summary`, `error`, `costUsd`, `outputFile` |
+
+When a background task finishes, the main process sends the sidecar a `say` with a fixed sentence
+built from the task title. The worker output itself is never sent to the sidecar.

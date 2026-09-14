@@ -18,6 +18,7 @@ const { createSessionController } = require("./session");
 const { createConversationHotkey } = require("./hotkey");
 const { createVramCoordinator } = require("./vram");
 const { createConversationRuntime } = require("./runtime");
+const { createWorkerManager } = require("./workers");
 
 const PRELOAD_ID = "openwhispr-conversation-bridge";
 const HOTKEY_REGISTRATION_DELAY_MS = 2000;
@@ -121,6 +122,39 @@ function install({ windowManager, whisperManager, debugLogger }) {
     debugLogger,
   });
   app.on("will-quit", () => runtime.shutdownSync());
+
+  // A finished background task is announced with a fixed sentence (never the worker's own text):
+  // spoken now when a session is running, otherwise when the next session starts.
+  const pendingAnnouncements = [];
+  const workers = createWorkerManager({
+    userDataDir,
+    getConfig: () => config,
+    confirm,
+    tr,
+    debugLogger,
+    onUpdate: (task, { finished } = {}) => {
+      conversationWindows.broadcast({ type: "task.update", data: task });
+      if (!finished || task.status === "cancelled") return;
+      const succeeded = task.status === "succeeded";
+      if (Notification.isSupported()) {
+        new Notification({
+          title: tr(
+            succeeded
+              ? "conversation:workers.notificationDone"
+              : "conversation:workers.notificationFailed"
+          ),
+          body: task.title,
+        }).show();
+      }
+      const sentence = tr(
+        succeeded ? "conversation:workers.spokenDone" : "conversation:workers.spokenFailed",
+        { title: task.title }
+      );
+      if (runtime.isRunning()) runtime.send("say", { text: sentence });
+      else pendingAnnouncements.push(sentence);
+    },
+  });
+  app.on("will-quit", () => workers.shutdownSync());
 
   const conversationHotkey = createConversationHotkey({
     windowManager,
@@ -229,10 +263,17 @@ function install({ windowManager, whisperManager, debugLogger }) {
         if (!sessionController.isActive()) {
           return { success: false, displayText: tr("conversation:common.unavailable") };
         }
-        return runtime.begin({ llm: payload.llm, tools: payload.tools });
+        const result = await runtime.begin({ llm: payload.llm, tools: payload.tools });
+        if (result.success) {
+          for (const text of pendingAnnouncements.splice(0)) runtime.send("say", { text });
+        }
+        return result;
       },
       "session.toolResult": async (payload) => runtime.toolResult(payload),
       "session.interrupt": async () => ({ success: runtime.send("interrupt") }),
+      "workers.delegate": (payload, context) => workers.delegate(payload, context),
+      "workers.list": async () => workers.list(),
+      "workers.cancel": async (payload) => workers.cancel(payload.taskId),
       "config.get": async () => ({ success: true, data: publicConfig() }),
       "config.setHotkey": async (payload) => {
         const hotkey = String(payload.hotkey || "").trim();

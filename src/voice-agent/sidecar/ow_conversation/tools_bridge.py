@@ -17,7 +17,11 @@ from typing import Any
 TOOL_RESULT_TIMEOUT_S = 180.0
 
 # Tools whose execution waits for a button in a native dialog.
-CONFIRMABLE_TOOLS = frozenset({"set_displays", "run_powershell"})
+CONFIRMABLE_TOOLS = frozenset({"set_displays", "run_powershell", "delegate_task"})
+
+# Spoken as soon as the model calls the tool, before the dialog is answered. A delegation is
+# acknowledged once, here: the model is not asked to comment on an accepted delegation.
+SPOKEN_ACKS = {"delegate_task": "D'accord, je lance ça en arrière-plan. Confirme à l'écran."}
 
 SendFn = Callable[..., Awaitable[None]]
 

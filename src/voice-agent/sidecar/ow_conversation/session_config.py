@@ -20,6 +20,7 @@ class SessionConfig:
     system_prompt: str
     tools: tuple[dict[str, Any], ...]
     stt_language: str | None
+    hotwords: str
     barge_in: str
     whisper_model: str
     kokoro_model_path: str
@@ -86,6 +87,7 @@ def parse_session_config(data: dict[str, Any], *, api_key: str | None = None) ->
         system_prompt=str(data.get("systemPrompt") or ""),
         tools=tuple(tool_specs(data.get("tools"))),
         stt_language=stt_language_code(data.get("sttLanguage")),
+        hotwords=str(data.get("hotwords") or "")[:300],
         barge_in="interrupt" if data.get("bargeIn") == "interrupt" else "mute",
         whisper_model=str(data.get("whisperModel") or "deepdml/faster-whisper-large-v3-turbo-ct2"),
         kokoro_model_path=model_path,

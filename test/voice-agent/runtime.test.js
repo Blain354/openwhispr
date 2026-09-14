@@ -5,6 +5,7 @@ const {
   routeSidecarMessage,
   resolveLlmEndpoint,
   harnessArgs,
+  hotwordsFor,
 } = require("../../src/voice-agent/main/runtime");
 
 const RELAYED = [
@@ -91,4 +92,13 @@ test("the WAV harness is only reachable in development", () => {
   ]);
   assert.deepEqual(harnessArgs({ NODE_ENV: "production", OW_CONVERSATION_WAV_INPUT: dir }), []);
   assert.deepEqual(harnessArgs({ NODE_ENV: "development" }), []);
+});
+
+test("Whisper is given the app and project names as hotwords", () => {
+  const listDirs = (parent) => (parent === "C:\\code" ? ["blain-infra", "openwhispr"] : []);
+  assert.equal(
+    hotwordsFor({ workerProjectRoots: ["C:\\code\\*", "D:\\work\\thesis"] }, listDirs),
+    "OpenWhispr, blain-infra, openwhispr, thesis"
+  );
+  assert.equal(hotwordsFor({}, listDirs), "OpenWhispr");
 });

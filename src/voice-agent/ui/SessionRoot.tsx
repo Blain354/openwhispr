@@ -28,6 +28,15 @@ interface BridgeMessage {
   data?: Record<string, unknown>;
 }
 
+interface TaskCard {
+  id: string;
+  title: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  progress: string | null;
+  summary: string | null;
+  error: string | null;
+}
+
 interface ToolCallRecord {
   name: string;
   status: "executing" | "completed" | "error";
@@ -63,6 +72,7 @@ export default function SessionRoot() {
   const [persisted, setPersisted] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [tasks, setTasks] = useState<TaskCard[]>([]);
   const createdForSession = useRef(false);
   const begunForSession = useRef(false);
   const conversationIdRef = useRef<number | null>(null);
@@ -80,6 +90,12 @@ export default function SessionRoot() {
   useEffect(() => {
     window.electronAPI?.micWarmHoldChanged?.(true);
     return () => window.electronAPI?.micWarmHoldChanged?.(false);
+  }, []);
+
+  useEffect(() => {
+    void invokeConversation<{ tasks: TaskCard[] }>("workers.list").then((result) => {
+      if (result.success && Array.isArray(result.data?.tasks)) setTasks(result.data.tasks);
+    });
   }, []);
 
   useEffect(() => {
@@ -250,6 +266,15 @@ export default function SessionRoot() {
         const ms = Number(message.data?.userBotMs);
         if (Number.isFinite(ms)) setLatencyMs(Math.round(ms));
       }),
+      on("task.update", (message) => {
+        const task = message.data as unknown as TaskCard | undefined;
+        if (!task?.id) return;
+        setTasks((prev) =>
+          prev.some((item) => item.id === task.id)
+            ? prev.map((item) => (item.id === task.id ? task : item))
+            : [task, ...prev].slice(0, 10)
+        );
+      }),
       on("warning", (message) => setNotice(String(message.data?.message ?? ""))),
       on("error", (message) => setNotice(String(message.data?.message ?? ""))),
     ];
@@ -321,6 +346,41 @@ export default function SessionRoot() {
         >
           {notice}
         </p>
+      )}
+
+      {tasks.length > 0 && (
+        <section
+          className="border-b border-white/10 px-4 py-2 text-xs"
+          data-testid="conversation-tasks"
+        >
+          <div className="mb-1 text-zinc-400">{t("conversation:workers.heading")}</div>
+          <ul className="space-y-1">
+            {tasks.map((task) => (
+              <li key={task.id} className="rounded-md bg-white/5 px-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex-1 truncate text-zinc-100">{task.title}</span>
+                  <span className="text-zinc-400">
+                    {t(`conversation:workers.status.${task.status}`)}
+                  </span>
+                  {(task.status === "queued" || task.status === "running") && (
+                    <button
+                      type="button"
+                      className="rounded bg-white/10 px-2 py-0.5 hover:bg-white/20"
+                      onClick={() => void invokeConversation("workers.cancel", { taskId: task.id })}
+                    >
+                      {t("conversation:workers.cancel")}
+                    </button>
+                  )}
+                </div>
+                {(task.error || task.summary || task.progress) && (
+                  <p className="mt-1 line-clamp-2 text-zinc-400">
+                    {task.error || task.summary || task.progress}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {!persisted && (

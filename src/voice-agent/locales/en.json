@@ -99,5 +99,43 @@
     },
     "unavailableTitle": "Conversation hotkey unavailable",
     "unavailableBody": "{{hotkey}} is already used by another application. Click to open the conversation settings and pick another hotkey."
+  },
+  "workers": {
+    "confirmTitle": "Start a background task",
+    "confirmMessage": "The assistant wants to start a background task: “{{title}}”.",
+    "detailProject": "Folder: {{cwd}}",
+    "detailPrivacy": "Claude Code will read files and git history in this folder, and nothing else. The instructions and the files it reads are sent to Anthropic.",
+    "detailPrompt": "Instructions:",
+    "accepted": "Background task started: {{title}}.",
+    "cancelled": "The background task was not started.",
+    "missingFields": "A background task needs a title and instructions.",
+    "promptTooLong": "The instructions are too long (at most {{max}} characters).",
+    "unavailable": "Claude Code was not found at {{path}}.",
+    "noProjects": "No project folder is configured for background tasks.",
+    "noMatch": "No single project matches. Known projects: {{names}}.",
+    "refusedFolder": "This folder cannot be used for background tasks.",
+    "timedOut": "Stopped after {{minutes}} minutes.",
+    "denied": "Refused tool use: {{tools}}.",
+    "exitCode": "Claude Code exited with code {{code}}.",
+    "listed": "{{count}} background tasks.",
+    "none": "No background task.",
+    "notFound": "No background task with this id.",
+    "cancelledTask": "Cancelled before it started: {{title}}.",
+    "cancelling": "Stopping: {{title}}.",
+    "alreadyFinished": "Already finished: {{title}}.",
+    "notificationDone": "Background task finished",
+    "notificationFailed": "Background task failed",
+    "spokenDone": "The task “{{title}}” is finished.",
+    "spokenFailed": "The task “{{title}}” failed.",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Done",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "heading": "Background tasks",
+    "cancel": "Cancel",
+    "authRequired": "Claude Code needs you to sign in again: run claude in a terminal, then retry."
   }
 }

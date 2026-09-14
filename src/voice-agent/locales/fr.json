@@ -99,5 +99,43 @@
     },
     "unavailableTitle": "Raccourci de conversation indisponible",
     "unavailableBody": "{{hotkey}} est déjà utilisé par une autre application. Clique pour ouvrir les réglages de la conversation et choisir un autre raccourci."
+  },
+  "workers": {
+    "confirmTitle": "Lancer une tâche en arrière-plan",
+    "confirmMessage": "L’assistant veut lancer une tâche en arrière-plan : « {{title}} ».",
+    "detailProject": "Dossier : {{cwd}}",
+    "detailPrivacy": "Claude Code lira les fichiers et l’historique git de ce dossier, rien d’autre. Les instructions et les fichiers lus sont envoyés à Anthropic.",
+    "detailPrompt": "Instructions :",
+    "accepted": "Tâche lancée en arrière-plan : {{title}}.",
+    "cancelled": "La tâche en arrière-plan n’a pas été lancée.",
+    "missingFields": "Une tâche en arrière-plan demande un titre et des instructions.",
+    "promptTooLong": "Les instructions sont trop longues ({{max}} caractères au plus).",
+    "unavailable": "Claude Code est introuvable à {{path}}.",
+    "noProjects": "Aucun dossier de projet n’est configuré pour les tâches en arrière-plan.",
+    "noMatch": "Aucun projet unique ne correspond. Projets connus : {{names}}.",
+    "refusedFolder": "Ce dossier ne peut pas servir aux tâches en arrière-plan.",
+    "timedOut": "Arrêtée après {{minutes}} minutes.",
+    "denied": "Outils refusés : {{tools}}.",
+    "exitCode": "Claude Code s’est arrêté avec le code {{code}}.",
+    "listed": "{{count}} tâches en arrière-plan.",
+    "none": "Aucune tâche en arrière-plan.",
+    "notFound": "Aucune tâche avec cet identifiant.",
+    "cancelledTask": "Annulée avant de démarrer : {{title}}.",
+    "cancelling": "Arrêt en cours : {{title}}.",
+    "alreadyFinished": "Déjà terminée : {{title}}.",
+    "notificationDone": "Tâche en arrière-plan terminée",
+    "notificationFailed": "Tâche en arrière-plan en échec",
+    "spokenDone": "La tâche « {{title}} » est terminée.",
+    "spokenFailed": "La tâche « {{title}} » a échoué.",
+    "status": {
+      "queued": "En attente",
+      "running": "En cours",
+      "succeeded": "Terminée",
+      "failed": "Échec",
+      "cancelled": "Annulée"
+    },
+    "heading": "Tâches en arrière-plan",
+    "cancel": "Annuler",
+    "authRequired": "Claude Code doit être reconnecté : lance claude dans un terminal, puis réessaie."
   }
 }

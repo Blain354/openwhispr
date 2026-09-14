@@ -59,6 +59,30 @@ the dev instance rewrites `~/.openwhispr/cli-bridge.json`.
 `toolsInChat` can also be set here, but the environment variable in step 1 is the intended way
 during development.
 
+### Background tasks (Claude Code workers)
+
+The voice session can delegate read-only work (files and git history) to `claude -p`. Declare the
+project folders it may use, and the notes vault it must never touch:
+
+```json
+{
+  "workerProjectRoots": [
+    "C:\\Users\\gblai\\Documents\\github\\*",
+    "C:\\Users\\gblai\\Documents\\blain-infra"
+  ],
+  "vaultRoot": "C:\\Users\\gblai\\SynologyDrive\\Knowledge_base",
+  "workerBudgetUsd": 2
+}
+```
+
+- A root ending in `*` offers each of its sub-folders as a project.
+- For a single dev run, `OW_CONVERSATION_WORKER_ROOTS` takes the same list separated by `;`, and
+  `OW_CONVERSATION_VAULT_ROOT` sets the vault.
+- `claudePath` defaults to `%USERPROFILE%\.local\bin\claude.exe`.
+- **The standalone `claude` CLI must be signed in.** Run `claude` once in a terminal and use
+  `/login` if asked. A worker cannot reuse the Claude desktop app's session, and a stale CLI login
+  ends every task with "Claude Code needs you to sign in again".
+
 ### When the hotkey is already taken
 
 Windows refuses a global hotkey that another application registered first. On the reference machine

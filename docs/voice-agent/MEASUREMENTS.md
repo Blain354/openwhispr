@@ -40,8 +40,8 @@ after. About 4.2 GB of the 12 GB card stays free.
 Latency is Pipecat's `UserBotLatencyObserver`: from the end of user speech (VAD stop minus
 `stop_secs`) to the first bot audio, in milliseconds.
 
-| Turn | Heard (Whisper)                                  | Total | VAD stop | STT | Turn end | LLM TTFB | Sentence wait | TTS first audio |
-| ---- | ------------------------------------------------ | ----- | -------- | --- | -------- | -------- | ------------- | --------------- |
+| Turn | Heard (Whisper)                                   | Total | VAD stop | STT | Turn end | LLM TTFB | Sentence wait | TTS first audio |
+| ---- | ------------------------------------------------- | ----- | -------- | --- | -------- | -------- | ------------- | --------------- |
 | 1    | « Bonjour ! Peux-tu te présenter en une phrase? » | 2,143 | 200      | 313 | 976      | 339      | 58            | 255             |
 | 2    | « Quelle est la capitale de l'Australie ? »       | 2,435 | 200      | 300 | 307      | 79       | 301           | 1,246           |
 | 3    | « Donne-moi une astuce pour mieux dormir. »       | 1,965 | 200      | 289 | 321      | 97       | 190           | 866             |
@@ -79,3 +79,31 @@ Not measured in this run:
 - App quit with a live session.
 - A real microphone.
 - Barge-in.
+
+## Latency tuning and delegation (2026-09-14)
+
+Five changes, then the same harness with two turns: a delegation and a simple question asked while
+the worker runs.
+
+| Change                                                                   | Effect                                   |
+| ------------------------------------------------------------------------ | ---------------------------------------- |
+| Whisper decoding: beam 1, no timestamps, no conditioning on earlier text | 289 → **298 ms**, and 500 ms on a longer sentence |
+| Turn end: speech timeout 0.6 s → 0.4 s                                  | 320 → **100 ms**                         |
+| TTS: first clause of a reply released at its comma or colon              | first audio 381 → **399 ms** (and no 1.2 s outlier) |
+| LLM prefix (system prompt + tool schemas) warmed during startup          | first request 8,803 → **109–346 ms**     |
+| Whisper hotwords: app name and project folder names                     | « Blin Infra » → « Blain-Infra »         |
+
+- **Simple question during a running task: 1,232 ms** end of speech → first audio (VAD 200, STT
+  298, turn end 100, LLM 109, sentence 124, TTS 399).
+- **Delegation turn: 2,429 ms** to the spoken acknowledgement (STT 500, LLM 346, the rest is the
+  tool call round trip and the injected sentence).
+- Startup is now load 6.2 s + LLM warm-up 0.8 s, so the session reaches `listening` in about 10 s.
+
+Delegation, end to end in the dev app:
+
+- The model called `delegate_task`; the main process showed its confirmation (folder, instructions,
+  "sent to Anthropic"), which the harness accepted by pressing Run.
+- The task ran 37 s and **succeeded**, cost $0.171, and its summary landed in the session window's
+  task card and in `userData/voice-agent/tasks/<id>.md`.
+- Completion was announced aloud **812 ms** after the task finished, with the fixed sentence.
+- While the worker ran, the simple question was still answered in 1.2 s.

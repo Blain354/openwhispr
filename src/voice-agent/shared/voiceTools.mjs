@@ -15,6 +15,9 @@ export const VOICE_TOOL_ALLOWLIST = Object.freeze([
   "get_note",
   "list_folders",
   "copy_to_clipboard",
+  "delegate_task",
+  "list_tasks",
+  "cancel_task",
 ]);
 
 /**
