@@ -92,6 +92,46 @@ click it to open the conversation window and pick another hotkey in its settings
 validated against Windows shortcuts and the other OpenWhispr hotkeys, then saved to
 `config.json`).
 
+### Notes vault (read-only)
+
+```json
+{
+  "vaultRoot": "C:\\Users\\gblai\\SynologyDrive\\Knowledge_base",
+  "vaultExcluded": ["00_Inbox/raw", "99_Archive"]
+}
+```
+
+- `vaultExcluded` holds folder names to skip; `60_Sante`, hidden folders, anything outside the
+  vault and any note whose frontmatter says `sensitive: true` or `scope: santé` are refused
+  whatever the configuration says.
+- Meeting notes under `00_Inbox/pocket/` only ever return their summary and action items.
+- `OW_CONVERSATION_VAULT_ROOT` sets the root for a single dev run.
+
+### MCP servers
+
+`<userData>/voice-agent/mcp.json`:
+
+```json
+{
+  "servers": [
+    {
+      "name": "openclaw",
+      "url": "https://mcp.blain-projects.ca/mcp",
+      "read": ["list_workspace_files", "read_workspace_file"],
+      "write": ["drop_note"]
+    }
+  ]
+}
+```
+
+- Exact tool names only: no wildcards, and nothing the server offers beyond this list is visible.
+- At most 12 tools across all servers, and the whole file is refused if that is exceeded.
+- Tools are exposed to the model as `mcp_<server>__<tool>`; a `write` tool asks for a native
+  confirmation showing its arguments.
+- **Tokens are typed in the session window** (Conversation settings → MCP server token). They are
+  encrypted with the OS secure storage and never read back into a window; never put a token in
+  `mcp.json`.
+
 ## 6. Checks
 
 - Control panel chat: "open Notepad" calls `open_app` and Notepad starts.

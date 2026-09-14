@@ -2,6 +2,8 @@ import type { ToolRegistry } from "../../services/tools/ToolRegistry";
 import { getSettings, selectResolvedLLMConfig } from "../../stores/settingsStore";
 import { shouldOfferOsTools } from "./gating";
 import { createOsTools } from "./os";
+import { createMcpTools } from "./mcp";
+import { createVaultTools } from "./vault";
 import { createWorkerTools } from "./workers";
 
 function currentModes(): string[] {
@@ -35,8 +37,20 @@ export function registerConversationTools(registry: ToolRegistry, _settings?: un
   // Background workers send instructions to Anthropic: voice session only, never upstream chats.
   const inSession = () => window.conversationAPI?.bootstrap.windowKind === "session";
   if (inSession()) {
-    for (const tool of createWorkerTools(inSession)) {
+    for (const tool of [...createWorkerTools(inSession), ...createVaultTools(inSession)]) {
       registry.register(tool);
     }
   }
+}
+
+/** MCP proxies are added once the main process has listed what its servers actually offer. */
+export function registerMcpTools(registry: ToolRegistry, definitions: unknown): string[] {
+  const inSession = () => window.conversationAPI?.bootstrap.windowKind === "session";
+  if (!inSession()) return [];
+  const tools = createMcpTools(
+    (Array.isArray(definitions) ? definitions : []) as Parameters<typeof createMcpTools>[0],
+    inSession
+  );
+  for (const tool of tools) registry.register(tool);
+  return tools.map((tool) => tool.name);
 }

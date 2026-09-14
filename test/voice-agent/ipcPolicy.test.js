@@ -126,3 +126,16 @@ test("background workers are reachable from the voice session only", () => {
     }
   }
 });
+
+test("the vault and MCP ops are reachable from the voice session only", () => {
+  for (const op of ["vault.search", "vault.read", "mcp.list", "mcp.call", "mcp.setToken"]) {
+    assert.equal(isOpAllowed({ windowKind: "session", op, toolsInChat: false }), true, op);
+    for (const windowKind of ["companion", "main", "control-panel"]) {
+      assert.equal(
+        isOpAllowed({ windowKind, op, toolsInChat: true }),
+        false,
+        `${windowKind} ${op}`
+      );
+    }
+  }
+});

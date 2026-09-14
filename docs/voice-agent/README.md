@@ -132,6 +132,20 @@ and the hook decides. If the hook itself cannot run, Claude Code logs a hook err
 so it fails open — which is why the other two layers stay. It runs under this app's own binary
 (`ELECTRON_RUN_AS_NODE`), so it does not need Node on PATH.
 
+## Notes vault and MCP servers
+
+Both are evaluated in the main process; the session window only asks.
+
+- **Vault**: `vault_search` and `vault_read` walk a Markdown vault read-only. Sealed (`60_Sante`),
+  hidden and excluded folders are pruned during the walk rather than filtered afterwards, links are
+  not followed, every path is re-checked on its real path, and a note marked `sensitive: true` (or
+  `scope: santé`) is never returned. Meeting notes under `00_Inbox/pocket/` return only their
+  summary and action items. The audit log records how many notes matched, never the query text.
+- **MCP**: servers and their exact tool names come from `<userData>/voice-agent/mcp.json`. Tools are
+  exposed as `mcp_<server>__<tool>`, a `write` tool is confirmed in a native dialog that shows its
+  arguments, and the name is checked against the configuration again at call time. Tokens live in
+  the main process (`safeStorage`), are written from the session window and never read back.
+
 ### Development harness (recorded turns instead of the microphone)
 
 With `NODE_ENV=development` (as set by `npm run dev`), `OW_CONVERSATION_WAV_INPUT` makes the

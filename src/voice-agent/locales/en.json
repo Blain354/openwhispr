@@ -137,5 +137,36 @@
     "heading": "Background tasks",
     "cancel": "Cancel",
     "authRequired": "Claude Code needs you to sign in again: run claude in a terminal, then retry."
+  },
+  "vault": {
+    "notConfigured": "No notes vault is configured.",
+    "emptyQuery": "Give at least one word to search for.",
+    "private": "That note is private.",
+    "notFound": "No such note in the vault.",
+    "refused": "That path cannot be read.",
+    "found": "{{count}} notes found.",
+    "read": "Read {{path}}.",
+    "sensitiveSkipped": "({{count}} private notes were skipped.)",
+    "conflictCopy": "(Sync conflict copy.)",
+    "truncated": "(Note truncated.)"
+  },
+  "mcp": {
+    "unavailable": "The MCP servers are unavailable.",
+    "unknownTool": "Unknown MCP tool: {{name}}.",
+    "confirmTitle": "Let the assistant write through an MCP server",
+    "confirmMessage": "The assistant wants to run “{{tool}}” on the “{{server}}” server.",
+    "detailArguments": "Arguments:",
+    "cancelled": "Cancelled.",
+    "done": "{{tool}} done.",
+    "failed": "{{tool}} failed.",
+    "tokenLabel": "MCP server token (stored encrypted, never read back)",
+    "tokenServerPlaceholder": "server",
+    "tokenPlaceholder": "token",
+    "tokenSaved": "Token saved. Servers with a token: {{servers}}.",
+    "tokenErrors": {
+      "no-encryption": "This system has no secure storage, so no token was saved.",
+      "no-server": "Name the server the token belongs to.",
+      "write-failed": "The token could not be saved."
+    }
   }
 }

@@ -16,6 +16,11 @@ const OP_RULES = {
   "workers.delegate": { session: true },
   "workers.list": { session: true },
   "workers.cancel": { session: true },
+  "vault.search": { session: true },
+  "vault.read": { session: true },
+  "mcp.list": { session: true },
+  "mcp.call": { session: true },
+  "mcp.setToken": { session: true },
   "config.get": { session: true },
   "config.setHotkey": { session: true },
   // Development-only probes; their handlers refuse outside NODE_ENV=development.

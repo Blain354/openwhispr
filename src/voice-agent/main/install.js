@@ -5,7 +5,7 @@
 // hotkey slot is registered later, once the dictation window (and its hotkeys) exist.
 const path = require("path");
 const { pathToFileURL } = require("url");
-const { app, dialog, ipcMain, Notification, session } = require("electron");
+const { app, dialog, ipcMain, Notification, safeStorage, session } = require("electron");
 const DevServerManager = require("../../helpers/devServerManager");
 const { isAllowedAppNavigation } = require("../../helpers/navigationGuard");
 const { loadConfig, saveConfig } = require("./config");
@@ -19,6 +19,9 @@ const { createConversationHotkey } = require("./hotkey");
 const { createVramCoordinator } = require("./vram");
 const { createConversationRuntime } = require("./runtime");
 const { createWorkerManager } = require("./workers");
+const { createTokenStore } = require("./secrets");
+const { createMcpHost } = require("./mcpHost");
+const { createVaultAccess } = require("./vault");
 
 const PRELOAD_ID = "openwhispr-conversation-bridge";
 const HOTKEY_REGISTRATION_DELAY_MS = 2000;
@@ -156,6 +159,20 @@ function install({ windowManager, whisperManager, debugLogger }) {
   });
   app.on("will-quit", () => workers.shutdownSync());
 
+  const vault = createVaultAccess({ userDataDir, getConfig: () => config, tr, debugLogger });
+  const tokens = createTokenStore({ userDataDir, safeStorage, debugLogger });
+  let mcp = null;
+  const mcpHost = () =>
+    (mcp ||= createMcpHost({
+      userDataDir,
+      tokens,
+      confirm,
+      tr,
+      debugLogger,
+      createClient: (options) => require("@ai-sdk/mcp").createMCPClient(options),
+    }));
+  app.on("will-quit", () => void mcp?.reset());
+
   const conversationHotkey = createConversationHotkey({
     windowManager,
     onToggle: () => sessionController.toggle(),
@@ -227,6 +244,8 @@ function install({ windowManager, whisperManager, debugLogger }) {
     toolsInChat: config.toolsInChat,
     hotkey: config.hotkey,
     conversationModel: config.conversationModel,
+    // The window needs to know whether a vault exists, never where it is.
+    hasVault: !!config.vaultRoot,
     sttLanguage: config.sttLanguage,
     bargeIn: config.bargeIn,
     confirmDelegation: config.confirmDelegation,
@@ -274,6 +293,22 @@ function install({ windowManager, whisperManager, debugLogger }) {
       "workers.delegate": (payload, context) => workers.delegate(payload, context),
       "workers.list": async () => workers.list(),
       "workers.cancel": async (payload) => workers.cancel(payload.taskId),
+      "vault.search": async (payload) => vault.search(payload),
+      "vault.read": async (payload) => vault.read(payload),
+      "mcp.list": async () => mcpHost().list(),
+      "mcp.call": async (payload, context) => mcpHost().call(payload, context),
+      "mcp.setToken": async (payload) => {
+        const result = tokens.set(payload.server, payload.token);
+        if (!result.ok) {
+          return {
+            success: false,
+            displayText: tr(`conversation:mcp.tokenErrors.${result.error}`),
+          };
+        }
+        // A new token means the next session reconnects with it.
+        void mcp?.reset();
+        return { success: true, data: { servers: result.servers } };
+      },
       "config.get": async () => ({ success: true, data: publicConfig() }),
       "config.setHotkey": async (payload) => {
         const hotkey = String(payload.hotkey || "").trim();

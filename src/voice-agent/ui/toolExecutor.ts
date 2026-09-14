@@ -1,7 +1,12 @@
 import { createToolRegistry } from "../../services/tools";
 import type { ToolRegistry } from "../../services/tools/ToolRegistry";
 import { getSettings } from "../../stores/settingsStore";
-import { selectVoiceTools, toolResultText, VOICE_TOOL_ALLOWLIST } from "../shared/voiceTools.mjs";
+import {
+  selectVoiceTools,
+  toolResultText,
+  voiceToolAllowlist,
+  VOICE_TOOL_ALLOWLIST,
+} from "../shared/voiceTools.mjs";
 
 export interface VoiceToolSchema {
   name: string;
@@ -23,17 +28,23 @@ export function createVoiceToolRegistry(): ToolRegistry {
   });
 }
 
-export function voiceToolSchemas(registry: ToolRegistry): VoiceToolSchema[] {
-  return selectVoiceTools(registry.getAll()) as VoiceToolSchema[];
+export function voiceToolSchemas(registry: ToolRegistry, allowlist?: string[]): VoiceToolSchema[] {
+  return selectVoiceTools(
+    registry.getAll(),
+    allowlist || VOICE_TOOL_ALLOWLIST
+  ) as VoiceToolSchema[];
 }
+
+export { voiceToolAllowlist };
 
 export async function executeVoiceToolCall(
   registry: ToolRegistry,
-  call: { name?: unknown; arguments?: unknown }
+  call: { name?: unknown; arguments?: unknown },
+  allowlist: readonly string[] = VOICE_TOOL_ALLOWLIST
 ): Promise<{ success: boolean; text: string }> {
   const name = typeof call.name === "string" ? call.name : "";
   const tool = registry.get(name);
-  if (!tool || !(VOICE_TOOL_ALLOWLIST as readonly string[]).includes(name)) {
+  if (!tool || !allowlist.includes(name)) {
     return { success: false, text: `Unknown tool: ${name || "(none)"}` };
   }
   let args: Record<string, unknown> = {};

@@ -85,13 +85,13 @@ Not measured in this run:
 Five changes, then the same harness with two turns: a delegation and a simple question asked while
 the worker runs.
 
-| Change                                                                   | Effect                                   |
-| ------------------------------------------------------------------------ | ---------------------------------------- |
-| Whisper decoding: beam 1, no timestamps, no conditioning on earlier text | 289 → **298 ms**, and 500 ms on a longer sentence |
-| Turn end: speech timeout 0.6 s → 0.4 s                                  | 320 → **100 ms**                         |
+| Change                                                                   | Effect                                              |
+| ------------------------------------------------------------------------ | --------------------------------------------------- |
+| Whisper decoding: beam 1, no timestamps, no conditioning on earlier text | 289 → **298 ms**, and 500 ms on a longer sentence   |
+| Turn end: speech timeout 0.6 s → 0.4 s                                   | 320 → **100 ms**                                    |
 | TTS: first clause of a reply released at its comma or colon              | first audio 381 → **399 ms** (and no 1.2 s outlier) |
-| LLM prefix (system prompt + tool schemas) warmed during startup          | first request 8,803 → **109–346 ms**     |
-| Whisper hotwords: app name and project folder names                     | « Blin Infra » → « Blain-Infra »         |
+| LLM prefix (system prompt + tool schemas) warmed during startup          | first request 8,803 → **109–346 ms**                |
+| Whisper hotwords: app name and project folder names                      | « Blin Infra » → « Blain-Infra »                    |
 
 - **Simple question during a running task: 1,232 ms** end of speech → first audio (VAD 200, STT
   298, turn end 100, LLM 109, sentence 124, TTS 399).
@@ -107,3 +107,24 @@ Delegation, end to end in the dev app:
   task card and in `userData/voice-agent/tasks/<id>.md`.
 - Completion was announced aloud **812 ms** after the task finished, with the fixed sentence.
 - While the worker ran, the simple question was still answered in 1.2 s.
+
+## Notes vault and MCP (2026-09-14)
+
+Driven from the session window over CDP, against the running dev app (a mock MCP server on
+127.0.0.1, the real vault):
+
+- The declared MCP tools were listed (`mcp_mock__echo_note`, `mcp_mock__drop_note`) and the tool the
+  server also offered but the configuration did not declare stayed hidden and was refused when
+  called by name.
+- A read ran straight away; the write waited for its native confirmation and only then reached the
+  server.
+- `vault_search` returned 6 notes from the real vault and `vault_read` returned a 12 KB note;
+  `60_Sante/…`, `.obsidian/…` and `../../Windows/win.ini` were all refused.
+
+Spoken, in the dev app: « Cherche dans mes notes ce que j'ai écrit aujourd'hui sur OpenWhispr, puis
+résume-le en une phrase » → `vault_search("OpenWhispr")` → 6 notes → a correct one-sentence summary
+of the day. Turn latency 2,210 ms (tool round trip included).
+
+Before that run, the same question made the model call upstream's `search_notes` (OpenWhispr's own
+notes, which are empty here) instead of the vault. Two tools for the same words is a choice a 4B
+model gets wrong, so the app's note tools are now left out of a session when a vault is configured.

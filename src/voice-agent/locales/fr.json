@@ -137,5 +137,36 @@
     "heading": "Tâches en arrière-plan",
     "cancel": "Annuler",
     "authRequired": "Claude Code doit être reconnecté : lance claude dans un terminal, puis réessaie."
+  },
+  "vault": {
+    "notConfigured": "Aucun coffre de notes n’est configuré.",
+    "emptyQuery": "Donne au moins un mot à chercher.",
+    "private": "Cette note est privée.",
+    "notFound": "Aucune note de ce nom dans le coffre.",
+    "refused": "Ce chemin ne peut pas être lu.",
+    "found": "{{count}} notes trouvées.",
+    "read": "Lu {{path}}.",
+    "sensitiveSkipped": "({{count}} notes privées ont été ignorées.)",
+    "conflictCopy": "(Copie de conflit de synchronisation.)",
+    "truncated": "(Note tronquée.)"
+  },
+  "mcp": {
+    "unavailable": "Les serveurs MCP ne répondent pas.",
+    "unknownTool": "Outil MCP inconnu : {{name}}.",
+    "confirmTitle": "Laisser l’assistant écrire via un serveur MCP",
+    "confirmMessage": "L’assistant veut exécuter « {{tool}} » sur le serveur « {{server}} ».",
+    "detailArguments": "Paramètres :",
+    "cancelled": "Annulé.",
+    "done": "{{tool}} effectué.",
+    "failed": "{{tool}} a échoué.",
+    "tokenLabel": "Jeton d’un serveur MCP (chiffré, jamais relu)",
+    "tokenServerPlaceholder": "serveur",
+    "tokenPlaceholder": "jeton",
+    "tokenSaved": "Jeton enregistré. Serveurs avec jeton : {{servers}}.",
+    "tokenErrors": {
+      "no-encryption": "Ce système n’a pas de stockage sécurisé : aucun jeton n’a été enregistré.",
+      "no-server": "Indique à quel serveur appartient le jeton.",
+      "write-failed": "Le jeton n’a pas pu être enregistré."
+    }
   }
 }

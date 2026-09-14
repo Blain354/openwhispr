@@ -11,7 +11,13 @@ import {
   voiceMessageMetadata,
 } from "../shared/voiceMetadata.mjs";
 import { ensureConversationBundles } from "./i18n";
-import { createVoiceToolRegistry, executeVoiceToolCall, voiceToolSchemas } from "./toolExecutor";
+import { registerMcpTools } from "../tools";
+import {
+  createVoiceToolRegistry,
+  executeVoiceToolCall,
+  voiceToolAllowlist,
+  voiceToolSchemas,
+} from "./toolExecutor";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
 ensureConversationBundles();
@@ -20,6 +26,7 @@ interface PublicConfig {
   hotkey: string;
   conversationModel: string;
   sttLanguage: string;
+  hasVault?: boolean;
 }
 
 interface BridgeMessage {
@@ -73,11 +80,14 @@ export default function SessionRoot() {
   const [notice, setNotice] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [tasks, setTasks] = useState<TaskCard[]>([]);
+  const [mcpServer, setMcpServer] = useState("");
+  const [mcpToken, setMcpToken] = useState("");
   const createdForSession = useRef(false);
   const begunForSession = useRef(false);
   const conversationIdRef = useRef<number | null>(null);
   const registryRef = useRef<ToolRegistry | null>(null);
   const toolCallsRef = useRef<ToolCallRecord[]>([]);
+  const allowlistRef = useRef<string[]>(voiceToolAllowlist([]));
 
   const active = state !== "idle" && state !== "error" && state !== "stopping";
 
@@ -160,19 +170,29 @@ export default function SessionRoot() {
             baseURL: llmConfig.cloudBaseUrl || llmConfig.remoteUrl || "",
             apiKey: llmConfig.customApiKey || "",
           };
-    void invokeConversation("session.begin", { llm, tools: voiceToolSchemas(registry) }).then(
-      (result) => {
-        if (result.success) return;
-        const code = result.errors?.[0];
-        setNotice(
-          code && BEGIN_ERROR_KEYS[code]
-            ? t(BEGIN_ERROR_KEYS[code])
-            : t("conversation:session.errors.startFailed", {
-                reason: result.displayText || code || "?",
-              })
-        );
-      }
-    );
+    void (async () => {
+      // A server that is slow or down must not hold the session back: the tools it would add are
+      // simply missing from this session.
+      const [mcp, current] = await Promise.all([
+        invokeConversation<{ tools: unknown[] }>("mcp.list"),
+        invokeConversation<PublicConfig>("config.get"),
+      ]);
+      const mcpNames = mcp.success ? registerMcpTools(registry, mcp.data?.tools) : [];
+      allowlistRef.current = voiceToolAllowlist(mcpNames, { hasVault: !!current.data?.hasVault });
+      const result = await invokeConversation("session.begin", {
+        llm,
+        tools: voiceToolSchemas(registry, allowlistRef.current),
+      });
+      if (result.success) return;
+      const code = result.errors?.[0];
+      setNotice(
+        code && BEGIN_ERROR_KEYS[code]
+          ? t(BEGIN_ERROR_KEYS[code])
+          : t("conversation:session.errors.startFailed", {
+              reason: result.displayText || code || "?",
+            })
+      );
+    })();
   }, [state, t]);
 
   const persist = useCallback(
@@ -199,10 +219,11 @@ export default function SessionRoot() {
       const name = String(message.data?.name ?? "");
       const record: ToolCallRecord = { name, status: "executing" };
       toolCallsRef.current.push(record);
-      const result = await executeVoiceToolCall(registry, {
-        name,
-        arguments: message.data?.arguments,
-      });
+      const result = await executeVoiceToolCall(
+        registry,
+        { name, arguments: message.data?.arguments },
+        allowlistRef.current
+      );
       record.status = result.success ? "completed" : "error";
       await invokeConversation("session.toolResult", {
         id: message.id,
@@ -280,6 +301,22 @@ export default function SessionRoot() {
     ];
     return () => offs.forEach((off) => off());
   }, [persist]);
+
+  const saveMcpToken = async () => {
+    const result = await invokeConversation<{ servers: string[] }>("mcp.setToken", {
+      server: mcpServer.trim(),
+      token: mcpToken,
+    });
+    setMcpToken("");
+    setFeedback({
+      ok: !!result.success,
+      lines: [
+        result.success
+          ? t("conversation:mcp.tokenSaved", { servers: (result.data?.servers || []).join(", ") })
+          : result.displayText || "Error",
+      ],
+    });
+  };
 
   const saveHotkey = async () => {
     const result = await invokeConversation<PublicConfig>("config.setHotkey", {
@@ -435,6 +472,36 @@ export default function SessionRoot() {
             ))}
           </ul>
         )}
+        <label className="mt-4 block text-zinc-400" htmlFor="conversation-mcp-server">
+          {t("conversation:mcp.tokenLabel")}
+        </label>
+        <div className="mt-1 flex gap-2">
+          <input
+            id="conversation-mcp-server"
+            className="w-28 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-zinc-100"
+            value={mcpServer}
+            onChange={(event) => setMcpServer(event.target.value)}
+            placeholder={t("conversation:mcp.tokenServerPlaceholder")}
+            spellCheck={false}
+          />
+          <input
+            id="conversation-mcp-token"
+            type="password"
+            className="flex-1 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-zinc-100"
+            value={mcpToken}
+            onChange={(event) => setMcpToken(event.target.value)}
+            placeholder={t("conversation:mcp.tokenPlaceholder")}
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-500"
+            onClick={() => void saveMcpToken()}
+          >
+            {t("conversation:session.settings.save")}
+          </button>
+        </div>
+
         {config && (
           <dl className="mt-3 grid grid-cols-2 gap-1 text-zinc-400">
             <dt>{t("conversation:session.settings.model")}</dt>
