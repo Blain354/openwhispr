@@ -32,6 +32,8 @@
     "src/utils/**/*",
     "src/updater.js",
     "src/components.json",
+    "src/voice-agent/**/*",
+    "!src/voice-agent/sidecar/**/*",
     "!node_modules/.cache/**/*",
     "!src/node_modules/**/*",
 

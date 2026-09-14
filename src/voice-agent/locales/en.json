@@ -1,0 +1,44 @@
+{
+  "common": {
+    "unavailable": "Conversation tools are not available in this window.",
+    "forbidden": "This action is not allowed from this window.",
+    "cancelled": "Cancelled.",
+    "windowsOnly": "This action is only available on Windows."
+  },
+  "confirm": {
+    "cancel": "Cancel",
+    "execute": "Run",
+    "timeoutNote": "Without an answer within 60 seconds, the action is cancelled."
+  },
+  "openApp": {
+    "launched": "Opened {{name}}.",
+    "launchedUnverified": "Asked Windows to open {{name}}; no window has appeared yet.",
+    "notFound": "No installed application matches \"{{query}}\".",
+    "ambiguous": "Several applications match \"{{query}}\": {{candidates}}."
+  },
+  "focusWindow": {
+    "focused": "Brought {{title}} to the front.",
+    "notFound": "No open window matches \"{{query}}\".",
+    "blocked": "Found {{title}}, but Windows did not let it come to the front."
+  },
+  "setDisplays": {
+    "title": "Change display mode",
+    "message": "Switch the displays to \"{{mode}}\"?",
+    "detail": "Requested by the assistant. Screens may go dark for a few seconds.",
+    "done": "Display mode set to {{mode}}.",
+    "invalidMode": "Unknown display mode \"{{mode}}\"."
+  },
+  "runPowershell": {
+    "title": "Run a PowerShell script",
+    "messageLow": "The assistant wants to run a read-only PowerShell script.",
+    "messageHigh": "The assistant wants to run a PowerShell script that can change your system.",
+    "reason": "Reason: {{reason}}",
+    "risks": "Why it is flagged: {{reasons}}",
+    "script": "Script:",
+    "refusedSensitive": "Refused: the script touches credential files.",
+    "refusedTooLong": "Refused: the script is too long to be reviewed in a confirmation dialog.",
+    "failed": "The script failed (exit code {{code}}).",
+    "timedOut": "The script was stopped after {{seconds}} seconds.",
+    "succeeded": "The script ran successfully."
+  }
+}

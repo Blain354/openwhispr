@@ -997,6 +997,7 @@ async function startApp() {
   // failure before the whisper pre-warm below resolves its GPU backend.
   resetWhisperGpuFailureOnUpgrade(environmentManager);
   registerSidecars();
+  require("./src/voice-agent/main/install").install({ windowManager, debugLogger });
   startAuthBridgeServer();
 
   cliBridge = new CliBridge(ipcHandlers);

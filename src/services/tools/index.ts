@@ -11,6 +11,7 @@ import { calendarAvailabilityTool } from "./calendarAvailabilityTool";
 import { createSnippetTool, createUpdateSnippetsTool, type SnippetActions } from "./snippetTool";
 import { createUpdateDictionaryTool, type DictionaryActions } from "./dictionaryTool";
 import type { ContainerScope } from "../../types/chat";
+import { registerConversationTools } from "../../voice-agent/tools";
 
 export { ToolRegistry } from "./ToolRegistry";
 export type { ToolDefinition, ToolResult } from "./ToolRegistry";
@@ -52,6 +53,8 @@ export function createToolRegistry(settings: ToolRegistrySettings): ToolRegistry
     registry.register(calendarTool);
     registry.register(calendarAvailabilityTool);
   }
+
+  registerConversationTools(registry, settings);
 
   return registry;
 }

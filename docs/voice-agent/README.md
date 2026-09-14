@@ -67,6 +67,24 @@ value: a bare lease is refreshed by `git fetch` and protects nothing.
 3. The conversation hotkey (default `Control+Alt+Space`) opens and closes a session without
    starting a dictation.
 
+## Running the test suite on Windows
+
+**Always isolate the model cache before `npm test`:**
+
+```powershell
+$env:OPENWHISPR_CACHE_ROOT = Join-Path $env:TEMP "openwhispr-test-cache"
+npm test
+```
+
+At `v1.10.0`, `test/helpers/localReasoningBridgeChain.test.js` stubs Electron's home directory but
+`src/helpers/modelDirUtils.js` prefers `USERPROFILE` on Windows, so the test writes a 1 MB fake
+model over the first registry model (`Qwen_Qwen3.5-9B-Q4_K_M.gguf`) in the real
+`%USERPROFILE%\.cache\openwhispr\models`. Upstream CI runs on Linux and never sees it. With
+`OPENWHISPR_CACHE_ROOT` set, the cache resolves into the temporary folder instead.
+
+A clean Windows checkout of `v1.10.0` also has pre-existing test failures (198 of 3,809 on the
+reference machine, mostly Linux/macOS-specific); compare against that baseline rather than zero.
+
 ## Python sidecar environment
 
 The sidecar's virtual environment and model caches never live inside the repository (upstream's

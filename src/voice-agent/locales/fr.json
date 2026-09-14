@@ -1,0 +1,44 @@
+{
+  "common": {
+    "unavailable": "Les outils de conversation ne sont pas disponibles dans cette fenêtre.",
+    "forbidden": "Cette action n'est pas permise depuis cette fenêtre.",
+    "cancelled": "Annulé.",
+    "windowsOnly": "Cette action n'existe que sous Windows."
+  },
+  "confirm": {
+    "cancel": "Annuler",
+    "execute": "Exécuter",
+    "timeoutNote": "Sans réponse dans les 60 secondes, l'action est annulée."
+  },
+  "openApp": {
+    "launched": "{{name}} est ouvert.",
+    "launchedUnverified": "Windows a reçu la demande d'ouvrir {{name}} ; aucune fenêtre n'est encore apparue.",
+    "notFound": "Aucune application installée ne correspond à « {{query}} ».",
+    "ambiguous": "Plusieurs applications correspondent à « {{query}} » : {{candidates}}."
+  },
+  "focusWindow": {
+    "focused": "{{title}} est au premier plan.",
+    "notFound": "Aucune fenêtre ouverte ne correspond à « {{query}} ».",
+    "blocked": "{{title}} est trouvée, mais Windows a refusé de la mettre au premier plan."
+  },
+  "setDisplays": {
+    "title": "Changer le mode d'affichage",
+    "message": "Passer les écrans en mode « {{mode}} » ?",
+    "detail": "Demandé par l'assistant. Les écrans peuvent s'éteindre quelques secondes.",
+    "done": "Mode d'affichage : {{mode}}.",
+    "invalidMode": "Mode d'affichage inconnu : « {{mode}} »."
+  },
+  "runPowershell": {
+    "title": "Exécuter un script PowerShell",
+    "messageLow": "L'assistant veut exécuter un script PowerShell en lecture seule.",
+    "messageHigh": "L'assistant veut exécuter un script PowerShell qui peut modifier ton système.",
+    "reason": "Raison : {{reason}}",
+    "risks": "Pourquoi il est signalé : {{reasons}}",
+    "script": "Script :",
+    "refusedSensitive": "Refusé : le script touche des fichiers d'identifiants.",
+    "refusedTooLong": "Refusé : le script est trop long pour être relu dans une confirmation.",
+    "failed": "Le script a échoué (code {{code}}).",
+    "timedOut": "Le script a été arrêté après {{seconds}} secondes.",
+    "succeeded": "Le script s'est exécuté."
+  }
+}
