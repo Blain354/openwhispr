@@ -87,8 +87,8 @@ function parseIdParam(value) {
 function parsePositiveIntQuery(query, key, fallback) {
   const raw = query.get(key);
   if (raw === null || raw === "") return fallback;
-  const num = Number(raw);
-  if (!Number.isInteger(num) || num <= 0) {
+  const num = parseIdParam(raw);
+  if (num === null) {
     const err = new Error(`Query parameter '${key}' must be a positive integer`);
     err.code = "VALIDATION";
     throw err;
