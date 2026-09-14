@@ -6,7 +6,7 @@
 // it is recording.
 const { ipcMain } = require("electron");
 
-function createSessionController({ windowManager, conversationWindows, debugLogger }) {
+function createSessionController({ windowManager, conversationWindows, debugLogger, onStopping }) {
   let state = "idle";
   let startedAt = null;
   let machinePromise = null;
@@ -32,15 +32,24 @@ function createSessionController({ windowManager, conversationWindows, debugLogg
     await dispatch("session.start");
     await conversationWindows.showSession();
     await conversationWindows.showCompanion();
-    // Until the voice sidecar exists, the session is ready as soon as its windows are.
-    await dispatch("sidecar.ready");
+    // The session window asks for the voice runtime (session.begin) once it has resolved the LLM
+    // and its tools; the runtime moves the session to "listening" when the sidecar is ready.
     debugLogger?.info("Conversation session started", {}, "conversation");
     return state;
   }
 
   async function stop() {
-    if (!isActive()) return state;
+    if (state === "idle" || state === "stopping") return state;
     await dispatch("session.stop");
+    try {
+      await onStopping?.();
+    } catch (error) {
+      debugLogger?.warn(
+        "Voice runtime did not stop cleanly",
+        { error: error?.message },
+        "conversation"
+      );
+    }
     conversationWindows.closeCompanion();
     await dispatch("session.stopped");
     startedAt = null;

@@ -1,0 +1,29 @@
+[project]
+name = "ow-conversation"
+version = "0.1.0"
+description = "OpenWhispr Conversation mode voice sidecar (Pipecat: faster-whisper, local LLM, Kokoro)"
+requires-python = "==3.12.*"
+dependencies = [
+  "pipecat-ai[whisper,silero,local,kokoro]==1.10.0",
+  "websockets>=13",
+  "numpy",
+  # ctranslate2's Windows wheel loads cuBLAS and cuDNN from PATH at the first CUDA inference.
+  "nvidia-cublas-cu12; sys_platform == 'win32'",
+  "nvidia-cudnn-cu12==9.*; sys_platform == 'win32'",
+  "nvidia-cuda-runtime-cu12; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ow_conversation"]
+
+[tool.pytest.ini_options]
+# No .pytest_cache inside the repository: upstream's prettier/eslint scans walk dot folders.
+addopts = "-p no:cacheprovider"
+testpaths = ["tests"]

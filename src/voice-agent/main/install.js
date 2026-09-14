@@ -16,6 +16,8 @@ const { registerConversationIpc } = require("./ipc");
 const { createConversationWindows } = require("./windows");
 const { createSessionController } = require("./session");
 const { createConversationHotkey } = require("./hotkey");
+const { createVramCoordinator } = require("./vram");
+const { createConversationRuntime } = require("./runtime");
 
 const PRELOAD_ID = "openwhispr-conversation-bridge";
 const HOTKEY_REGISTRATION_DELAY_MS = 2000;
@@ -75,7 +77,7 @@ function describeCodes(codes, table) {
   });
 }
 
-function install({ windowManager, debugLogger }) {
+function install({ windowManager, whisperManager, debugLogger }) {
   if (installed) return installed;
 
   const userDataDir = app.getPath("userData");
@@ -89,13 +91,36 @@ function install({ windowManager, debugLogger }) {
   const os = createOsActions({ userDataDir, confirm, tr, debugLogger });
 
   let sessionController = null;
+  let runtime = null;
   const conversationWindows = createConversationWindows({
     debugLogger,
     onClosed: (kind) => {
       if (kind === "session") void sessionController?.stop();
     },
   });
-  sessionController = createSessionController({ windowManager, conversationWindows, debugLogger });
+  sessionController = createSessionController({
+    windowManager,
+    conversationWindows,
+    debugLogger,
+    onStopping: () => runtime?.end(),
+  });
+
+  // The model manager is loaded on first use, as main.js does.
+  let vram = null;
+  runtime = createConversationRuntime({
+    userDataDir,
+    getConfig: () => config,
+    sessionController,
+    conversationWindows,
+    getVram: () =>
+      (vram ||= createVramCoordinator({
+        modelManager: require("../../helpers/modelManagerBridge").default,
+        whisperManager,
+        debugLogger,
+      })),
+    debugLogger,
+  });
+  app.on("will-quit", () => runtime.shutdownSync());
 
   const conversationHotkey = createConversationHotkey({
     windowManager,
@@ -200,6 +225,14 @@ function install({ windowManager, debugLogger }) {
         success: true,
         data: { state: await sessionController.stop() },
       }),
+      "session.begin": async (payload) => {
+        if (!sessionController.isActive()) {
+          return { success: false, displayText: tr("conversation:common.unavailable") };
+        }
+        return runtime.begin({ llm: payload.llm, tools: payload.tools });
+      },
+      "session.toolResult": async (payload) => runtime.toolResult(payload),
+      "session.interrupt": async () => ({ success: runtime.send("interrupt") }),
       "config.get": async () => ({ success: true, data: publicConfig() }),
       "config.setHotkey": async (payload) => {
         const hotkey = String(payload.hotkey || "").trim();
@@ -234,6 +267,7 @@ function install({ windowManager, debugLogger }) {
           active: sessionController.isActive(),
           blockDictation: !!windowManager?._shouldBlockDictationInput?.("dictation"),
           blockAssistant: !!windowManager?._shouldBlockDictationInput?.("assistant"),
+          runtimeRunning: runtime.isRunning(),
           hotkeySlot: windowManager?.hotkeyManager?.getSlotHotkeys?.("conversation") || [],
         },
       })),

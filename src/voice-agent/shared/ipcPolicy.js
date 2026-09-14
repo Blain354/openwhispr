@@ -10,6 +10,9 @@ const OP_RULES = {
   "os.runPowershell": { session: true, chat: true },
   "session.getState": { session: true, companion: true },
   "session.stop": { session: true, companion: true },
+  "session.begin": { session: true },
+  "session.toolResult": { session: true },
+  "session.interrupt": { session: true, companion: true },
   "config.get": { session: true },
   "config.setHotkey": { session: true },
   // Development-only probes; their handlers refuse outside NODE_ENV=development.

@@ -55,6 +55,15 @@
       "saved": "Hotkey saved.",
       "model": "Local model",
       "language": "Speech language"
+    },
+    "interrupt": "Interrupt",
+    "latency": "Last reply after {{ms}} ms",
+    "errors": {
+      "sidecarNotInstalled": "The voice engine is not installed. See docs/voice-agent/README.md.",
+      "unsupportedProvider": "Conversation mode works with a local model or a custom OpenAI-compatible provider.",
+      "invalidBaseUrl": "The custom provider address is not valid.",
+      "insecureBaseUrl": "A remote provider must use HTTPS.",
+      "startFailed": "The voice session could not start: {{reason}}"
     }
   },
   "companion": {

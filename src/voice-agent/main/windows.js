@@ -132,7 +132,12 @@ function createConversationWindows({ debugLogger, onClosed }) {
     }
   }
 
-  return { windows, showSession, showCompanion, closeCompanion, broadcast };
+  function sendToSession(message) {
+    if (alive(windows.session))
+      windows.session.webContents.send("conversation-bridge:event", message);
+  }
+
+  return { windows, showSession, showCompanion, closeCompanion, broadcast, sendToSession };
 }
 
 module.exports = { createConversationWindows, SECURE_WEB_PREFERENCES };

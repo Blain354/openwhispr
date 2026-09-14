@@ -55,6 +55,15 @@
       "saved": "Raccourci enregistré.",
       "model": "Modèle local",
       "language": "Langue parlée"
+    },
+    "interrupt": "Interrompre",
+    "latency": "Dernière réponse après {{ms}} ms",
+    "errors": {
+      "sidecarNotInstalled": "Le moteur vocal n'est pas installé. Voir docs/voice-agent/README.md.",
+      "unsupportedProvider": "Le mode conversation fonctionne avec un modèle local ou un fournisseur personnalisé compatible OpenAI.",
+      "invalidBaseUrl": "L'adresse du fournisseur personnalisé n'est pas valide.",
+      "insecureBaseUrl": "Un fournisseur distant doit utiliser HTTPS.",
+      "startFailed": "La session vocale n'a pas pu démarrer : {{reason}}"
     }
   },
   "companion": {

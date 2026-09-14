@@ -92,7 +92,35 @@ prettier/eslint/test scans walk dot folders under `src/`) nor under `%APPDATA%`:
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "$env:USERPROFILE\.cache\openwhispr\conversation\venv"
+$env:PYTHONDONTWRITEBYTECODE = "1"
 uv sync --project src/voice-agent/sidecar
+uv run --project src/voice-agent/sidecar python src/voice-agent/sidecar/scripts/fetch_models.py
 ```
 
-Models are cached under `%USERPROFILE%\.cache\openwhispr\conversation\`.
+- The venv is where Electron looks for `Scripts\python.exe`; without it, a session reports that
+  the voice engine is not installed.
+- Kokoro files go to `%USERPROFILE%\.cache\openwhispr\conversation\kokoro\` (sha256-checked).
+  Whisper large-v3-turbo (CTranslate2) goes to the Hugging Face cache.
+- The sidecar runs with `HF_HUB_OFFLINE=1`, so a session never downloads anything.
+- CUDA libraries come from the `nvidia-*-cu12` wheels; `cuda_env.py` puts their `bin` folders on
+  `PATH` before faster-whisper is imported.
+
+Sidecar tests (no GPU, no network):
+
+```powershell
+cd src/voice-agent/sidecar
+& "$env:USERPROFILE\.cache\openwhispr\conversation\venv\Scripts\python.exe" -m pytest -q tests
+```
+
+### Development harness (recorded turns instead of the microphone)
+
+With `NODE_ENV=development` (as set by `npm run dev`), `OW_CONVERSATION_WAV_INPUT` makes the
+sidecar play `turn1.wav`, `turn2.wav`… (16 kHz mono PCM) instead of opening the microphone. Each
+turn waits until the bot has answered and stayed silent for 1.5 s. Bot audio is not played but
+recorded to `bot-output.wav` in the same folder, in real time, so latencies stay realistic.
+
+```powershell
+$env:OW_CONVERSATION_ENABLED = "1"
+$env:OW_CONVERSATION_WAV_INPUT = "C:\path\to\fixtures"
+npm run dev
+```

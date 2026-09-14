@@ -96,3 +96,20 @@ test("session and configuration ops are never available to upstream chat windows
     }
   }
 });
+
+test("only the session window can begin a session or answer a tool call", () => {
+  for (const op of ["session.begin", "session.toolResult"]) {
+    assert.equal(isOpAllowed({ windowKind: "session", op, toolsInChat: false }), true, op);
+    for (const windowKind of ["companion", "main", "control-panel"]) {
+      assert.equal(
+        isOpAllowed({ windowKind, op, toolsInChat: true }),
+        false,
+        `${windowKind} ${op}`
+      );
+    }
+  }
+  assert.equal(
+    isOpAllowed({ windowKind: "companion", op: "session.interrupt", toolsInChat: false }),
+    true
+  );
+});

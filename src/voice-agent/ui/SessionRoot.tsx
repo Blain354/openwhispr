@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChatMessages } from "../../components/chat/ChatMessages";
 import type { Message } from "../../components/chat/types";
 import { useChatPersistence } from "../../components/chat/useChatPersistence";
-import { getSettings } from "../../stores/settingsStore";
-import { sessionTitle, shouldPersistVoiceSession } from "../shared/voiceMetadata.mjs";
+import type { ToolRegistry } from "../../services/tools/ToolRegistry";
+import { getSettings, selectResolvedLLMConfig } from "../../stores/settingsStore";
+import {
+  sessionTitle,
+  shouldPersistVoiceSession,
+  voiceMessageMetadata,
+} from "../shared/voiceMetadata.mjs";
 import { ensureConversationBundles } from "./i18n";
+import { createVoiceToolRegistry, executeVoiceToolCall, voiceToolSchemas } from "./toolExecutor";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
 ensureConversationBundles();
@@ -14,6 +20,17 @@ interface PublicConfig {
   hotkey: string;
   conversationModel: string;
   sttLanguage: string;
+}
+
+interface BridgeMessage {
+  type: string;
+  id?: string;
+  data?: Record<string, unknown>;
+}
+
+interface ToolCallRecord {
+  name: string;
+  status: "executing" | "completed" | "error";
 }
 
 const STATE_COLORS: Record<string, string> = {
@@ -28,16 +45,29 @@ const STATE_COLORS: Record<string, string> = {
   error: "bg-red-600",
 };
 
+const BEGIN_ERROR_KEYS: Record<string, string> = {
+  "sidecar-not-installed": "conversation:session.errors.sidecarNotInstalled",
+  "unsupported-provider": "conversation:session.errors.unsupportedProvider",
+  "invalid-base-url": "conversation:session.errors.invalidBaseUrl",
+  "insecure-base-url": "conversation:session.errors.insecureBaseUrl",
+};
+
 export default function SessionRoot() {
   const { t, i18n } = useTranslation();
   const state = useConversationState();
   const { createConversation } = useChatPersistence();
-  const [messages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [hotkeyDraft, setHotkeyDraft] = useState("");
   const [feedback, setFeedback] = useState<{ ok: boolean; lines: string[] } | null>(null);
   const [persisted, setPersisted] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const createdForSession = useRef(false);
+  const begunForSession = useRef(false);
+  const conversationIdRef = useRef<number | null>(null);
+  const registryRef = useRef<ToolRegistry | null>(null);
+  const toolCallsRef = useRef<ToolCallRecord[]>([]);
 
   const active = state !== "idle" && state !== "error" && state !== "stopping";
 
@@ -68,6 +98,7 @@ export default function SessionRoot() {
     }
     if (createdForSession.current) return;
     createdForSession.current = true;
+    conversationIdRef.current = null;
     const settings = getSettings() as unknown as {
       isSignedIn?: boolean;
       cloudBackupEnabled?: boolean;
@@ -79,9 +110,151 @@ export default function SessionRoot() {
     });
     setPersisted(allowed);
     if (allowed) {
-      void createConversation(sessionTitle(new Date(), i18n.language)).catch(() => {});
+      createConversation(sessionTitle(new Date(), i18n.language))
+        .then((id) => {
+          conversationIdRef.current = id;
+        })
+        .catch(() => {});
     }
   }, [active, createConversation, i18n.language]);
+
+  // Once per session: resolve the LLM and the tools here (upstream keeps both in this renderer),
+  // then ask the main process to start the voice runtime.
+  useEffect(() => {
+    if (state === "idle" || state === "error") {
+      begunForSession.current = false;
+      return;
+    }
+    if (state !== "starting" || begunForSession.current) return;
+    begunForSession.current = true;
+    setMessages([]);
+    setNotice(null);
+    setLatencyMs(null);
+    toolCallsRef.current = [];
+
+    const registry = createVoiceToolRegistry();
+    registryRef.current = registry;
+    const llmConfig = selectResolvedLLMConfig(getSettings(), "dictationAgent");
+    const llm =
+      llmConfig.mode === "local"
+        ? { mode: "local" }
+        : {
+            mode: llmConfig.mode,
+            model: llmConfig.model,
+            baseURL: llmConfig.cloudBaseUrl || llmConfig.remoteUrl || "",
+            apiKey: llmConfig.customApiKey || "",
+          };
+    void invokeConversation("session.begin", { llm, tools: voiceToolSchemas(registry) }).then(
+      (result) => {
+        if (result.success) return;
+        const code = result.errors?.[0];
+        setNotice(
+          code && BEGIN_ERROR_KEYS[code]
+            ? t(BEGIN_ERROR_KEYS[code])
+            : t("conversation:session.errors.startFailed", {
+                reason: result.displayText || code || "?",
+              })
+        );
+      }
+    );
+  }, [state, t]);
+
+  const persist = useCallback(
+    (role: "user" | "assistant", content: string, metadata: Record<string, unknown>) => {
+      const id = conversationIdRef.current;
+      if (!id || !content) return;
+      const pending = window.electronAPI?.addAgentMessage?.(id, role, content, metadata);
+      pending?.catch(() => {});
+    },
+    []
+  );
+
+  useEffect(() => {
+    const api = window.conversationAPI;
+    if (!api) return;
+    type Listener = Parameters<typeof api.on>[1];
+    const on = (type: string, handler: (message: BridgeMessage) => void) =>
+      api.on(type, handler as unknown as Listener);
+
+    const runToolCall = async (message: BridgeMessage) => {
+      if (typeof message.id !== "string") return;
+      const registry = registryRef.current ?? createVoiceToolRegistry();
+      registryRef.current = registry;
+      const name = String(message.data?.name ?? "");
+      const record: ToolCallRecord = { name, status: "executing" };
+      toolCallsRef.current.push(record);
+      const result = await executeVoiceToolCall(registry, {
+        name,
+        arguments: message.data?.arguments,
+      });
+      record.status = result.success ? "completed" : "error";
+      await invokeConversation("session.toolResult", {
+        id: message.id,
+        success: result.success,
+        text: result.text,
+      });
+    };
+
+    const offs = [
+      on("transcript.final", (message) => {
+        const text = String(message.data?.text ?? "").trim();
+        if (!text) return;
+        setMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: "user", content: text, isStreaming: false },
+        ]);
+        persist("user", text, voiceMessageMetadata());
+      }),
+      on("assistant.delta", (message) => {
+        const chunk = String(message.data?.text ?? "");
+        if (!chunk) return;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "assistant" && last.isStreaming) {
+            return [...prev.slice(0, -1), { ...last, content: last.content + chunk }];
+          }
+          return [
+            ...prev,
+            { id: crypto.randomUUID(), role: "assistant", content: chunk, isStreaming: true },
+          ];
+        });
+      }),
+      on("assistant.final", (message) => {
+        const interrupted = !!message.data?.interrupted;
+        // An interrupted reply is kept as far as it was actually heard.
+        const text = String(
+          (interrupted ? message.data?.spokenText : message.data?.text) ?? ""
+        ).trim();
+        const toolCalls = toolCallsRef.current;
+        toolCallsRef.current = [];
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          const streaming = !!last && last.role === "assistant" && last.isStreaming;
+          const rest = streaming ? prev.slice(0, -1) : prev;
+          const content = text || (streaming && last ? last.content : "");
+          if (!content) return rest;
+          return [
+            ...rest,
+            {
+              id: streaming && last ? last.id : crypto.randomUUID(),
+              role: "assistant",
+              content,
+              isStreaming: false,
+            },
+          ];
+        });
+        persist("assistant", text, voiceMessageMetadata({ interrupted, toolCalls }));
+      }),
+      on("tool.call", (message) => void runToolCall(message)),
+      on("latency", (message) => {
+        const ms = Number(message.data?.userBotMs);
+        if (Number.isFinite(ms)) setLatencyMs(Math.round(ms));
+      }),
+      on("warning", (message) => setNotice(String(message.data?.message ?? ""))),
+      on("error", (message) => setNotice(String(message.data?.message ?? ""))),
+    ];
+    return () => offs.forEach((off) => off());
+  }, [persist]);
 
   const saveHotkey = async () => {
     const result = await invokeConversation<PublicConfig>("config.setHotkey", {
@@ -114,8 +287,22 @@ export default function SessionRoot() {
           </div>
           <p className="text-xs text-zinc-400" data-testid="conversation-state">
             {t(`conversation:companion.states.${state}`)}
+            {latencyMs !== null && (
+              <span className="ml-2 text-zinc-500" data-testid="conversation-latency">
+                {t("conversation:session.latency", { ms: latencyMs })}
+              </span>
+            )}
           </p>
         </div>
+        {state === "speaking" && (
+          <button
+            type="button"
+            className="rounded-md bg-white/10 px-3 py-1.5 text-xs hover:bg-white/20"
+            onClick={() => void invokeConversation("session.interrupt")}
+          >
+            {t("conversation:session.interrupt")}
+          </button>
+        )}
         {active && (
           <button
             type="button"
@@ -126,6 +313,15 @@ export default function SessionRoot() {
           </button>
         )}
       </header>
+
+      {notice && (
+        <p
+          className="border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-xs text-red-200"
+          data-testid="conversation-notice"
+        >
+          {notice}
+        </p>
+      )}
 
       {!persisted && (
         <p className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
