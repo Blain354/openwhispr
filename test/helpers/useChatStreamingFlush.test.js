@@ -10,13 +10,36 @@ const {
   installHookDom,
 } = require("../lib/rendererTestHarness");
 
-// Both chat surfaces re-parse the whole answer through react-markdown on
-// every content write, so one write per streamed token made parse cost scale
-// with token count. The hook buffers streamed text and flushes it at most
-// once per interval; every exit from the stream loop flushes synchronously
-// first. This drives the REAL hook the same way
-// useChatStreamingCancellation.test.js does (one synchronous render, then
-// the returned closures), with setMessages counting content writes.
+// Keep the real SSE transport smoke test alongside controlled hook tests:
+// acknowledging a yielded chunk lets us test a pending flush without sleeps.
+function createControlledStream() {
+  let next = Promise.withResolvers();
+  let ended = false;
+  return {
+    async *read() {
+      while (true) {
+        const { chunk, error, done, consumed } = await next.promise;
+        next = Promise.withResolvers();
+        if (error) throw error;
+        if (done) return;
+        yield chunk;
+        consumed.resolve();
+      }
+    },
+    async emit(chunk) {
+      assert.equal(ended, false, "cannot emit after ending the fixture stream");
+      const consumed = Promise.withResolvers();
+      next.resolve({ chunk, consumed });
+      await consumed.promise;
+    },
+    end(error) {
+      if (ended) return;
+      ended = true;
+      next.resolve({ done: true, error });
+    },
+  };
+}
+
 function createOpenAiChunk(delta, finishReason = null) {
   return {
     id: "chatcmpl-cancellation-test",
@@ -29,8 +52,23 @@ function createOpenAiChunk(delta, finishReason = null) {
 
 async function renderChatStreaming(
   t,
-  { electronAPI = {}, settings = {}, onStreamComplete, live = false } = {}
+  {
+    electronAPI = {},
+    settings = {},
+    onStreamComplete,
+    onResponseContent,
+    live = false,
+    stream,
+    abortThrows = false,
+  } = {}
 ) {
+  let unmount;
+  // Node runs after hooks in registration order; unmount while the DOM exists.
+  t.after(async () => {
+    stream?.end();
+    await unmount?.();
+    t.mock.timers.reset();
+  });
   installBrowserGlobals(t, { window: { electronAPI } });
   const container = live ? installHookDom(t) : null;
   const vite = await createRendererServer(t, {
@@ -54,9 +92,7 @@ async function renderChatStreaming(
   const { useSettingsStore } = await vite.ssrLoadModule("/stores/settingsStore.ts");
   const { usePolicyStore } = await vite.ssrLoadModule("/stores/policyStore.ts");
   usePolicyStore.setState({ status: "unmanaged", appVersion: "1.8.3", policy: null });
-  // A self-hosted (LAN) chat agent with no tools in play: 4B+ in the model
-  // name makes it tool-eligible by the size heuristic, but the fixture
-  // fetch never emits a tool call, so it stays on the plain-content path.
+  // The 4B model enables tool handling for both the SSE and controlled streams.
   useSettingsStore.setState({
     chatAgentMode: "self-hosted",
     chatAgentProvider: "lan",
@@ -73,11 +109,22 @@ async function renderChatStreaming(
   // singleton constructed at import time; its API-key cache starts a real
   // setInterval that otherwise keeps the process alive after the test ends.
   t.after(() => reasoningService.destroy());
+  if (stream) {
+    t.mock.method(reasoningService, "processTextStreamingAI", () => stream.read());
+    t.mock.method(reasoningService, "cancelActiveStream", () =>
+      stream.end(abortThrows ? new DOMException("aborted", "AbortError") : undefined)
+    );
+  }
 
   let messages = [];
+  let committedMessages = [];
+  let renderMessages;
   let responseContentCalls = 0;
   let contentWrites = 0;
+  let dispatches = 0;
+  const snapshots = [];
   const setMessages = (updater) => {
+    dispatches += 1;
     const next = typeof updater === "function" ? updater(messages) : updater;
     const prevAssistant = messages.find((m) => m.role === "assistant");
     const nextAssistant = next.find((m) => m.role === "assistant");
@@ -85,22 +132,29 @@ async function renderChatStreaming(
       contentWrites += 1;
     }
     messages = next;
+    snapshots.push(next);
+    renderMessages?.(next);
   };
 
   let captured = null;
   function Harness() {
+    const [stateMessages, setStateMessages] = React.useState([]);
+    renderMessages = live ? setStateMessages : undefined;
+    React.useEffect(() => {
+      committedMessages = stateMessages;
+    }, [stateMessages]);
     captured = useChatStreaming({
-      messages,
+      messages: live ? stateMessages : messages,
       setMessages,
       onStreamComplete,
       onResponseContent: () => {
         responseContentCalls += 1;
+        onResponseContent?.();
       },
     });
     return null;
   }
 
-  let unmount;
   if (live) {
     const { createRoot } = require("react-dom/client");
     const root = createRoot(container);
@@ -111,7 +165,6 @@ async function renderChatStreaming(
       unmounted = true;
       await React.act(async () => root.unmount());
     };
-    t.after(unmount);
   } else {
     renderToStaticMarkup(React.createElement(Harness));
   }
@@ -119,10 +172,64 @@ async function renderChatStreaming(
   return {
     captured,
     getMessages: () => messages,
+    getCommittedMessages: () => committedMessages,
+    getAgentState: () => captured.agentState,
     getResponseContentCalls: () => responseContentCalls,
     getContentWrites: () => contentWrites,
+    getDispatches: () => dispatches,
+    snapshots,
     unmount,
   };
+}
+
+async function startControlledChat(t, { abortThrows = false } = {}) {
+  const stream = createControlledStream();
+  const persisted = [];
+  const delivered = [];
+  const harness = await renderChatStreaming(t, {
+    live: true,
+    stream,
+    abortThrows,
+    onStreamComplete: (assistantId, content, toolCalls) =>
+      persisted.push({ assistantId, content, toolCalls }),
+  });
+  // Enable after Vite/React setup so only the request's timers use the fake clock.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1000 });
+  let completion;
+  await React.act(async () => {
+    completion = harness.captured.sendToAI("hello", [], {
+      onComplete: (result) => delivered.push(result),
+    });
+  });
+  return {
+    ...harness,
+    persisted,
+    delivered,
+    emit: (chunk) => React.act(async () => stream.emit(chunk)),
+    tick: (milliseconds) => React.act(async () => t.mock.timers.tick(milliseconds)),
+    finish: (error) =>
+      React.act(async () => {
+        stream.end(error);
+        await completion;
+      }),
+    cancel: () =>
+      React.act(async () => {
+        harness.captured.cancelStream();
+        await completion;
+      }),
+    navigate: async () => {
+      await harness.unmount();
+      await completion;
+    },
+  };
+}
+
+async function assertNoLateWrites(harness) {
+  const dispatches = harness.getDispatches();
+  const messages = harness.getMessages();
+  await harness.tick(1000);
+  assert.equal(harness.getDispatches(), dispatches, "no timer dispatches after termination");
+  assert.deepEqual(harness.getMessages(), messages);
 }
 
 const ERROR_PREFIX = JSON.parse(
@@ -146,7 +253,9 @@ test("fifty streamed tokens produce a handful of content writes, and the final t
   const deltas = Array.from({ length: 50 }, (_, i) => `tok${i} `);
   stubFetch(
     t,
-    deltas.map((text) => sseEvent({ content: text })).join("") + sseEvent({}, "stop") + "data: [DONE]\n\n"
+    deltas.map((text) => sseEvent({ content: text })).join("") +
+      sseEvent({}, "stop") +
+      "data: [DONE]\n\n"
   );
   const harness = await renderChatStreaming(t);
 
@@ -161,32 +270,176 @@ test("fifty streamed tokens produce a handful of content writes, and the final t
   );
 });
 
-// Guard, not fail-first: on main there is no timer to cancel, so this passes
-// there too. It pins the cancel in the catch block — a flush firing after the
-// error text was written would replace the error with the partial reply.
-test("a stream that fails after a token shows the error, not a late partial flush", async (t) => {
-  const encoder = new TextEncoder();
-  stubFetch(
-    t,
-    new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(sseEvent({ content: "tok0 " })));
-      },
-      // Erroring inside start() would discard the queued token, and erroring
-      // synchronously in pull() aborts the SDK's parsing pipe before the parsed
-      // token is read. One real tick lets the token reach the hook first.
-      async pull(controller) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        controller.error(new Error("boom"));
-      },
-    })
-  );
-  const harness = await renderChatStreaming(t);
+test(
+  "an SSE error after a parsed token keeps the error instead of a late partial flush",
+  { timeout: 15000 },
+  async (t) => {
+    const tokenConsumed = Promise.withResolvers();
+    const encoder = new TextEncoder();
+    stubFetch(
+      t,
+      new ReadableStream({
+        async start(controller) {
+          controller.enqueue(encoder.encode(sseEvent({ content: "Partial reply" })));
+          await tokenConsumed.promise;
+          controller.error(new Error("boom"));
+        },
+      })
+    );
+    const harness = await renderChatStreaming(t, { onResponseContent: tokenConsumed.resolve });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    await harness.captured.sendToAI("fail please", []);
+    assert.equal(harness.getResponseContentCalls(), 1, "the token reached the hook before failure");
+    assert.equal(
+      harness.getContentWrites(),
+      1,
+      "only the error was written before the clock advanced"
+    );
+    assert.equal(harness.getMessages()[0].content, `${ERROR_PREFIX}: boom`);
+    assert.equal(harness.getMessages()[0].isStreaming, false);
+    const dispatches = harness.getDispatches();
+    t.mock.timers.tick(1000);
+    assert.equal(harness.getDispatches(), dispatches, "the pending flush was cancelled");
+    assert.equal(harness.getMessages()[0].content, `${ERROR_PREFIX}: boom`);
+  }
+);
 
-  await harness.captured.sendToAI("fail please", harness.getMessages());
-  await new Promise((resolve) => setTimeout(resolve, 60)); // longer than the flush interval
+test("paced tokens flush during the stream, rearm the timer, and persist the final tail", async (t) => {
+  const harness = await startControlledChat(t);
+  const initialDispatches = harness.getDispatches();
+  await harness.emit({ type: "content", text: "First " });
+  await harness.tick(16);
+  await harness.emit({ type: "content", text: "batch" });
+  await harness.tick(15);
+  assert.equal(harness.getDispatches(), initialDispatches);
+  assert.equal(harness.getCommittedMessages()[0].content, "");
 
-  const assistant = harness.getMessages().find((m) => m.role === "assistant");
-  assert.ok(assistant.content.startsWith(`${ERROR_PREFIX}:`), `error text shown, got ${JSON.stringify(assistant.content)}`);
+  await harness.tick(1);
+  assert.equal(harness.getDispatches(), initialDispatches + 1);
+  assert.equal(harness.getCommittedMessages()[0].content, "First batch");
+  assert.equal(harness.getCommittedMessages()[0].isStreaming, true);
+  assert.deepEqual(harness.persisted, []);
+  assert.deepEqual(harness.delivered, []);
+
+  await harness.emit({ type: "content", text: ", second" });
+  await harness.tick(31);
+  assert.equal(harness.getDispatches(), initialDispatches + 1);
+  await harness.tick(1);
+  assert.equal(harness.getDispatches(), initialDispatches + 2);
+  assert.equal(harness.getCommittedMessages()[0].content, "First batch, second");
+  await harness.emit({ type: "content", text: ", tail" });
+  await harness.finish();
+
+  const [assistant] = harness.getCommittedMessages();
+  assert.equal(assistant.content, "First batch, second, tail");
   assert.equal(assistant.isStreaming, false);
+  assert.equal(harness.getAgentState(), "idle");
+  assert.deepEqual(harness.persisted, [
+    {
+      assistantId: assistant.id,
+      content: assistant.content,
+      toolCalls: undefined,
+    },
+  ]);
+  assert.deepEqual(harness.delivered, harness.persisted);
+  assert.equal(harness.getResponseContentCalls(), 1);
+  await assertNoLateWrites(harness);
 });
+
+for (const abortThrows of [false, true]) {
+  test(`Stop flushes a pending token when abort ${abortThrows ? "throws" : "ends the stream"}`, async (t) => {
+    const harness = await startControlledChat(t, { abortThrows });
+    await harness.emit({ type: "content", text: "Partial reply" });
+    assert.equal(harness.getResponseContentCalls(), 1, "the hook consumed the token");
+    assert.equal(harness.getCommittedMessages()[0].content, "", "the timer has not fired");
+    await harness.cancel();
+    assert.equal(harness.getCommittedMessages()[0].content, "Partial reply");
+    assert.equal(harness.getCommittedMessages()[0].isStreaming, false);
+    assert.equal(harness.getAgentState(), "idle");
+    assert.deepEqual(harness.persisted, []);
+    assert.deepEqual(harness.delivered, []);
+    await assertNoLateWrites(harness);
+  });
+}
+
+test("unmount before the first flush preserves the received partial reply without delivery", async (t) => {
+  const harness = await startControlledChat(t);
+  await harness.emit({ type: "content", text: "Partial reply" });
+  assert.equal(harness.getResponseContentCalls(), 1);
+  assert.equal(harness.getCommittedMessages()[0].content, "");
+  const assistantId = harness.getMessages()[0].id;
+  await harness.navigate();
+  assert.equal(harness.getMessages()[0].content, "Partial reply");
+  assert.deepEqual(harness.persisted, [
+    {
+      assistantId,
+      content: "Partial reply",
+      toolCalls: undefined,
+    },
+  ]);
+  assert.equal(harness.getMessages()[0].isStreaming, false);
+  assert.deepEqual(harness.delivered, []);
+  await assertNoLateWrites(harness);
+});
+
+test("an error after a consumed token cancels its pending flush", async (t) => {
+  const harness = await startControlledChat(t);
+  await harness.emit({ type: "content", text: "Partial reply" });
+  assert.equal(harness.getResponseContentCalls(), 1, "the hook consumed the token before failure");
+  assert.equal(harness.getCommittedMessages()[0].content, "");
+  await harness.finish(new Error("boom"));
+  assert.equal(harness.getCommittedMessages()[0].content, `${ERROR_PREFIX}: boom`);
+  assert.equal(harness.getCommittedMessages()[0].isStreaming, false);
+  assert.deepEqual(harness.persisted, []);
+  assert.deepEqual(harness.delivered, []);
+  await assertNoLateWrites(harness);
+});
+
+for (const withContent of [true, false]) {
+  test(`${withContent ? "text and tool" : "tool-only"} replies preserve boundary ordering and persisted metadata`, async (t) => {
+    const harness = await startControlledChat(t);
+    const call = { id: "search-1", name: "search_notes", arguments: '{"query":"meeting"}' };
+    const metadata = [{ id: 42, title: "Meeting" }];
+    if (withContent) await harness.emit({ type: "content", text: "Searching notes. " });
+    const content = withContent ? "Searching notes. " : "";
+    await harness.emit({ type: "tool_calls", calls: [call] });
+
+    const firstToolSnapshot = harness.snapshots.findIndex(
+      (messages) => messages[0]?.toolCalls?.length
+    );
+    assert.ok(firstToolSnapshot > 0);
+    assert.equal(
+      harness.snapshots[firstToolSnapshot - 1][0].content,
+      content,
+      "pending text is dispatched before the tool call"
+    );
+    assert.equal(harness.getCommittedMessages()[0].content, content);
+    assert.equal(harness.getAgentState(), "tool-executing");
+    assert.deepEqual(harness.getCommittedMessages()[0].toolCalls, [
+      { ...call, status: "executing" },
+    ]);
+
+    await harness.emit({
+      type: "tool_result",
+      callId: call.id,
+      toolName: call.name,
+      displayText: "Found one note",
+      metadata,
+    });
+    const toolCalls = [{ ...call, status: "completed", result: "Found one note", metadata }];
+    assert.deepEqual(harness.getCommittedMessages()[0].toolCalls, toolCalls);
+    assert.equal(harness.getAgentState(), "streaming");
+    if (withContent) await harness.emit({ type: "content", text: "Found it." });
+    await harness.finish();
+    const [assistant] = harness.getCommittedMessages();
+    assert.equal(assistant.content, withContent ? "Searching notes. Found it." : "");
+    assert.equal(assistant.isStreaming, false);
+    assert.deepEqual(assistant.toolCalls, toolCalls);
+    assert.deepEqual(harness.persisted, [
+      { assistantId: assistant.id, content: assistant.content, toolCalls },
+    ]);
+    assert.deepEqual(harness.delivered, withContent ? harness.persisted : []);
+    assert.equal(harness.getResponseContentCalls(), 1);
+    await assertNoLateWrites(harness);
+  });
+}
