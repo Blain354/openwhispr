@@ -162,14 +162,28 @@ test("at most two workers run at once; a queued task can be cancelled", async ()
   assert.deepEqual(statuses, ["cancelled", "running", "succeeded"]);
 });
 
-test("a tool refusal fails the task, and cancelling a running task kills its tree", async () => {
+test("blocked calls are recorded, a blocked run fails, and cancelling kills the tree", async () => {
   const { manager, children, updates, killed } = setup();
   await manager.delegate({ title: "one", prompt: "p", project: "alpha" }, {});
-  children[0].finish([RESULT({ permission_denials: [{ tool_name: "Bash" }] })]);
+  // The guard blocked two attempts, the worker found an allowed one and answered.
+  children[0].finish([
+    RESULT({ permission_denials: [{ tool_name: "Bash" }, { tool_name: "Bash" }] }),
+  ]);
   await tick();
   await tick();
-  assert.equal(updates.at(-1).status, "failed");
-  assert.match(updates.at(-1).error, /denied/);
+  assert.equal(updates.at(-1).status, "succeeded");
+  assert.deepEqual(updates.at(-1).deniedTools, ["Bash"]);
+
+  const blocked = setup();
+  await blocked.manager.delegate({ title: "blocked", prompt: "p", project: "alpha" }, {});
+  blocked.children[0].finish(
+    [RESULT({ is_error: true, result: "", permission_denials: [{ tool_name: "Bash" }] })],
+    1
+  );
+  await tick();
+  await tick();
+  assert.equal(blocked.updates.at(-1).status, "failed");
+  assert.match(blocked.updates.at(-1).error, /denied/);
 
   const second = await manager.delegate({ title: "two", prompt: "p", project: "beta" }, {});
   const cancelled = manager.cancel(second.data.taskId);

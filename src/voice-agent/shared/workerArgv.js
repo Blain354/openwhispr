@@ -4,13 +4,30 @@
 // with no MCP server, no user-level settings and a spending cap. Its folder is chosen among the
 // configured project roots and is never the notes vault, a folder that contains it, a sealed
 // folder, the home folder or anything above it.
+//
+// What enforces "read-only" is the PreToolUse hook (workerGuard.cjs), not the tool flags: on Claude
+// Code 2.1.233, a print-mode worker given --tools and --allowedTools with --permission-mode dontAsk
+// (and with manual, and with no settings sources) still ran a command that was not on the list. The
+// hook denies every call the guard does not recognise, which was verified end to end. It is one
+// layer: --tools still narrows the tool set, and the worker prompt still states the scope.
 const path = require("path");
 
 const GIT_READ_COMMANDS = ["git log", "git show", "git status", "git diff", "git branch"];
 const SEALED_SEGMENTS = ["60_sante"];
 const MAX_BUDGET_USD = 20;
 
-function buildWorkerLaunch({ claudePath, budgetUsd = 2 }) {
+/** The settings the worker runs with: one hook, in front of every tool call. */
+function workerSettings(guardCommand) {
+  return JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "*", hooks: [{ type: "command", command: guardCommand, timeout: 10 }] },
+      ],
+    },
+  });
+}
+
+function buildWorkerLaunch({ claudePath, budgetUsd = 2, guardCommand }) {
   const budget = Number(budgetUsd);
   const cap = Number.isFinite(budget) && budget > 0 ? Math.min(budget, MAX_BUDGET_USD) : 2;
   return {
@@ -22,15 +39,10 @@ function buildWorkerLaunch({ claudePath, budgetUsd = 2 }) {
       "--verbose",
       "--tools",
       "Read,Grep,Glob,Bash",
-      "--allowedTools",
-      "Read",
-      "Grep",
-      "Glob",
-      ...GIT_READ_COMMANDS.flatMap((command) => [`Bash(${command})`, `Bash(${command} *)`]),
-      "--permission-mode",
-      "dontAsk",
+      "--settings",
+      workerSettings(guardCommand),
       "--setting-sources",
-      "project",
+      "",
       "--strict-mcp-config",
       "--mcp-config",
       '{"mcpServers":{}}',
@@ -158,6 +170,7 @@ function resolveWorkerCwd(
 
 module.exports = {
   buildWorkerLaunch,
+  workerSettings,
   similarity,
   checkWorkerDir,
   resolveWorkerCwd,

@@ -49,7 +49,9 @@ function summarizeResult(result) {
     ? result.permission_denials.map((denial) => String(denial?.tool_name || "unknown"))
     : [];
   return {
-    success: result.subtype === "success" && !result.is_error && denials.length === 0,
+    // Denials are reported separately: a worker that was blocked once and then found an allowed
+    // way to answer still succeeded.
+    success: result.subtype === "success" && !result.is_error,
     subtype: String(result.subtype || ""),
     text: typeof result.result === "string" ? result.result : "",
     costUsd: Number(result.total_cost_usd) || 0,

@@ -112,6 +112,26 @@ cd src/voice-agent/sidecar
 & "$env:USERPROFILE\.cache\openwhispr\conversation\venv\Scripts\python.exe" -m pytest -q tests
 ```
 
+## Background workers: what actually enforces "read-only"
+
+A voice session can delegate a long task to `claude -p`. The scope is enforced by a **PreToolUse
+hook** (`src/voice-agent/main/workerGuard.cjs`), not by the CLI's permission flags.
+
+Measured on Claude Code 2.1.233 in print mode: a worker started with `--tools Read,Grep,Glob,Bash`,
+an `--allowedTools` list of git read commands and `--permission-mode dontAsk` still ran `whoami`.
+So did the same worker with `--permission-mode manual`, and with `--setting-sources ""`. With the
+hook in front of every tool call, that request is denied and the denial is reported in the result's
+`permission_denials`; `git status` still runs.
+
+Blocked calls are recorded on the task, not treated as a failure by themselves: a worker asked for
+today's commits tried `cd … && git log`, then `git -C <path> log` — both refused by the guard — and
+then plain `git log`, which ran. A run that ends without an answer, denials included, fails.
+
+The hook is one layer of three: `--tools` narrows the tool set, the worker prompt states the scope,
+and the hook decides. If the hook itself cannot run, Claude Code logs a hook error and carries on,
+so it fails open — which is why the other two layers stay. It runs under this app's own binary
+(`ELECTRON_RUN_AS_NODE`), so it does not need Node on PATH.
+
 ### Development harness (recorded turns instead of the microphone)
 
 With `NODE_ENV=development` (as set by `npm run dev`), `OW_CONVERSATION_WAV_INPUT` makes the

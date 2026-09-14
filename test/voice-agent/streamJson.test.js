@@ -84,14 +84,15 @@ test("events keep the text, the tools used and the outcome", () => {
   assert.deepEqual(describeEvent(null), []);
 });
 
-test("a refused tool or a budget stop is not a success", () => {
+test("blocked calls are listed, and a budget stop is not a success", () => {
   const [denied] = describeEvent({
     ...RESULT_OK,
     permission_denials: [
       { tool_name: "Bash", tool_use_id: "tool-2", tool_input: { command: "ssh host" } },
     ],
   });
-  assert.equal(denied.success, false);
+  // The run itself succeeded: the worker was blocked once and then answered another way.
+  assert.equal(denied.success, true);
   assert.deepEqual(denied.denials, ["Bash"]);
   const [budget] = describeEvent({
     ...RESULT_OK,

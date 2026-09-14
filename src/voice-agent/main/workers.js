@@ -94,6 +94,7 @@ function createWorkerManager({
     startedAt: task.startedAt ?? null,
     finishedAt: task.finishedAt ?? null,
     costUsd: task.costUsd,
+    deniedTools: task.result?.denials?.length ? [...new Set(task.result.denials)] : [],
     progress: task.progress ?? null,
     summary: task.summary ?? null,
     error: task.error ?? null,
@@ -230,7 +231,11 @@ function createWorkerManager({
     }
     write(
       task.outputFile,
-      `\n## Result\n\n- Status: ${status}\n${task.error ? `- Error: ${task.error}\n` : ""}- Cost: $${task.costUsd.toFixed(3)}\n\n${task.result?.text || ""}\n`
+      `\n## Result\n\n- Status: ${status}\n${task.error ? `- Error: ${task.error}\n` : ""}${
+        task.result?.denials?.length
+          ? `- Blocked calls: ${[...new Set(task.result.denials)].join(", ")}\n`
+          : ""
+      }- Cost: ${task.costUsd.toFixed(3)}\n\n${task.result?.text || ""}\n`
     );
     audit({
       op: "workers.finish",
@@ -247,12 +252,15 @@ function createWorkerManager({
     const launch = buildWorkerLaunch({
       claudePath: config.claudePath || defaultClaudePath(),
       budgetUsd: config.workerBudgetUsd,
+      // The guard runs under this app's own binary (Electron as node), so a worker does not depend
+      // on a Node install being on PATH.
+      guardCommand: `"${process.execPath}" "${path.join(__dirname, "workerGuard.cjs")}"`,
     });
     let child;
     try {
       child = spawnImpl(launch.command, launch.args, {
         cwd: task.cwd,
-        env: buildChildEnv(env),
+        env: buildChildEnv(env, { extra: { ELECTRON_RUN_AS_NODE: "1" } }),
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -297,14 +305,15 @@ function createWorkerManager({
           "failed",
           tr("conversation:workers.timedOut", { minutes: TASK_TIMEOUT_MS / 60_000 })
         );
+      } else if (result?.success && code === 0) {
+        finish(task, "succeeded");
       } else if (result?.denials?.length) {
         finish(
           task,
           "failed",
-          tr("conversation:workers.denied", { tools: result.denials.join(", ") })
+          tr("conversation:workers.denied", { tools: [...new Set(result.denials)].join(", ") })
         );
-      } else if (result?.success && code === 0) finish(task, "succeeded");
-      else {
+      } else {
         const raw =
           task.spawnError ||
           (result && !result.success ? result.text || result.subtype : "") ||

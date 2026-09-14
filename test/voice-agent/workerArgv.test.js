@@ -13,25 +13,25 @@ const VAULT = path.join(HOME, "Notes");
 const CODE = path.join(HOME, "code");
 
 test("a worker is read-only, without MCP servers or user settings, and capped", () => {
-  const { command, args } = buildWorkerLaunch({ claudePath: "claude", budgetUsd: 50 });
+  const { command, args } = buildWorkerLaunch({
+    claudePath: "claude",
+    budgetUsd: 50,
+    guardCommand: 'node "guard.cjs"',
+  });
   assert.equal(command, "claude");
   const after = (flag) => args[args.indexOf(flag) + 1];
   assert.equal(args[0], "-p");
   assert.equal(after("--output-format"), "stream-json");
   assert.ok(args.includes("--verbose"));
   assert.equal(after("--tools"), "Read,Grep,Glob,Bash");
-  assert.equal(after("--permission-mode"), "dontAsk");
-  assert.equal(after("--setting-sources"), "project");
+  assert.equal(after("--setting-sources"), "");
   assert.ok(args.includes("--strict-mcp-config"));
   assert.equal(after("--mcp-config"), '{"mcpServers":{}}');
   assert.ok(args.includes("--no-session-persistence"));
   assert.equal(after("--max-budget-usd"), "20");
-  const allowed = args.slice(args.indexOf("--allowedTools") + 1, args.indexOf("--permission-mode"));
-  assert.ok(allowed.includes("Bash(git log *)"));
-  assert.equal(
-    allowed.some((rule) => /Edit|Write|ssh|curl|Bash\(\*\)|^Bash$/.test(rule)),
-    false
-  );
+  const settings = JSON.parse(after("--settings"));
+  assert.deepEqual(settings.hooks.PreToolUse[0].matcher, "*");
+  assert.equal(settings.hooks.PreToolUse[0].hooks[0].command, 'node "guard.cjs"');
   for (const forbidden of ["--dangerously-skip-permissions", "bypassPermissions", "--model"]) {
     assert.equal(args.includes(forbidden), false, forbidden);
   }
