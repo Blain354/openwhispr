@@ -15,6 +15,7 @@ async function setup(t) {
     if (root) await React.act(async () => root.unmount());
     delete globalThis.__interruptionToasts;
     delete globalThis.__interruptionDismissals;
+    delete globalThis.__autoEndCompletions;
   });
   const listeners = {};
   const noop = () => () => {};
@@ -52,6 +53,16 @@ async function setup(t) {
         if (listeners.resumed === callback) listeners.resumed = null;
       };
     },
+    onMeetingAutoEndRequested(callback) {
+      listeners.autoEnd = callback;
+      return () => {
+        if (listeners.autoEnd === callback) listeners.autoEnd = null;
+      };
+    },
+    meetingAutoEndCompleted: async (sessionId) => {
+      globalThis.__autoEndCompletions.push(sessionId);
+      return { success: false, reason: "notification-disabled" };
+    },
   };
   installBrowserGlobals(t, { window: { electronAPI: api } });
   installMicCaptureGlobals(t);
@@ -78,6 +89,7 @@ async function setup(t) {
   };
   globalThis.__interruptionToasts = [];
   globalThis.__interruptionDismissals = [];
+  globalThis.__autoEndCompletions = [];
   const vite = await createRendererServer(t, {
     cachePrefix: "pr2040-renderer-warning-review-",
     mockModules: {
@@ -113,8 +125,26 @@ async function setup(t) {
     );
   const { default: i18n } = await vite.ssrLoadModule("/i18n.ts");
   const resume = async () => React.act(async () => listeners.resumed?.());
-  return { store, render, interrupt, resume, focus, reveal, i18n };
+  const autoEnd = async () => {
+    const sessionId = store.getActiveRecordingSessionId();
+    assert.ok(sessionId);
+    await React.act(async () => {
+      listeners.autoEnd?.({ sessionId, reason: "mic-released" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
+  return { store, render, interrupt, resume, autoEnd, focus, reveal, i18n };
 }
+
+test("an automatic meeting stop does not request or render a post-meeting notification", async (t) => {
+  const { store, autoEnd } = await setup(t);
+
+  await autoEnd();
+
+  assert.equal(store.useMeetingRecordingStore.getState().isRecording, false);
+  assert.deepEqual(globalThis.__autoEndCompletions, []);
+  assert.deepEqual(globalThis.__interruptionToasts, []);
+});
 
 test("audio resuming while hidden discards the quiet warning before focus", async (t) => {
   const { interrupt, resume, focus, reveal } = await setup(t);
