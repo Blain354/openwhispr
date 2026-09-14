@@ -85,7 +85,8 @@ export function resolveMicrophoneSelection(devices, settings, systemDefault = nu
 
   if (mode === "built-in") {
     const device = inputs.find(
-      (candidate) => candidate.deviceId !== "default" && isBuiltInMicrophone(candidate.label)
+      (candidate) =>
+        !CHROMIUM_ALIAS_DEVICE_IDS.has(candidate.deviceId) && isBuiltInMicrophone(candidate.label)
     );
     return { mode, device: device || null, status: device ? "built-in" : "unavailable" };
   }

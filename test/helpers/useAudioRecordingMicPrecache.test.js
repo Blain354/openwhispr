@@ -8,21 +8,18 @@ const {
   installHookDom,
 } = require("../lib/rendererTestHarness");
 
-// Counts cacheMicrophoneDeviceId() calls and reports a non-streaming setup, so
-// the assertion below cannot be satisfied by the streaming warm-up path that
-// already calls it.
+// Counts cacheMicrophoneDeviceId() calls. The electronAPI stub below omits
+// getSttConfig, so the streaming warm-up (which also calls it) never runs and
+// the single call must come from the mount effect.
 const FAKE_AUDIO_MANAGER_SOURCE = `
-export const micPrecacheCalls = [];
+export const micPrecache = { calls: 0 };
 export default class FakeAudioManager {
   getState() {
     return {};
   }
   setCallbacks() {}
-  shouldUseStreaming() {
-    return false;
-  }
   cacheMicrophoneDeviceId() {
-    micPrecacheCalls.push(Date.now());
+    micPrecache.calls += 1;
   }
   cancelPreparedMicCapture() {}
   cleanup() {}
@@ -59,7 +56,7 @@ test("the mount effect pre-caches the microphone device id when streaming is off
     },
   });
   const { useAudioRecording } = await vite.ssrLoadModule("/hooks/useAudioRecording.js");
-  const { micPrecacheCalls } = await vite.ssrLoadModule("/helpers/audioManager");
+  const { micPrecache } = await vite.ssrLoadModule("/helpers/audioManager");
 
   function Harness() {
     useAudioRecording(() => {}, { onDemoEvent: () => {} });
@@ -71,5 +68,5 @@ test("the mount effect pre-caches the microphone device id when streaming is off
     root.render(React.createElement(Harness));
   });
 
-  assert.equal(micPrecacheCalls.length, 1);
+  assert.equal(micPrecache.calls, 1);
 });
