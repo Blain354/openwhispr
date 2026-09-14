@@ -1095,18 +1095,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
     try {
       const prepared = await this.preparedMicCapture.prepare(async () => {
-        const constraints = await this.getAudioConstraints();
-        const stream = await this._acquireCaptureStream(constraints);
-        const value = {
-          stream,
-          constraints,
-          recorder: null,
-          chunks: [],
-          pcmTap: null,
-          startedAt: Date.now(),
-        };
-        if (!this.shouldUseStreaming()) this._startPreRollRecorder(value);
-        return value;
+        // Built before the mic opens so its graph is rendering by the time the
+        // pre-roll recorder starts; a tap attached later misses the first frames.
+        const pcmTap = this._startPcmTap();
+        try {
+          const constraints = await this.getAudioConstraints();
+          const stream = await this._acquireCaptureStream(constraints);
+          const value = {
+            stream,
+            constraints,
+            recorder: null,
+            chunks: [],
+            pcmTap: null,
+            startedAt: Date.now(),
+          };
+          if (!this.shouldUseStreaming()) this._startPreRollRecorder(value, pcmTap);
+          if (!value.pcmTap) pcmTap?.close();
+          return value;
+        } catch (error) {
+          pcmTap?.close();
+          throw error;
+        }
       });
       if (prepared) {
         logger.debug("Microphone capture prepared", { preRoll: !!prepared.recorder }, "audio");
@@ -1142,15 +1151,16 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // Record from the instant the prepared stream delivers frames. If the hold
   // guard confirms a real dictation these chunks become the recording's opening;
   // a cancel discards them without the audio ever leaving the renderer.
-  _startPreRollRecorder(prepared) {
+  _startPreRollRecorder(prepared, pcmTap) {
     try {
       const recorder = new MediaRecorder(prepared.stream);
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) prepared.chunks.push(event.data);
       };
       recorder.start(RECORDING_TIMESLICE_MS);
+      pcmTap?.attach(prepared.stream);
       prepared.recorder = recorder;
-      prepared.pcmTap = this._startPcmTap(prepared.stream);
+      prepared.pcmTap = pcmTap;
     } catch (e) {
       logger.debug("Pre-roll recorder unavailable", { error: e.message }, "audio");
     }
@@ -1159,7 +1169,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // Offline local engines decode a renderer-captured 16 kHz WAV as-is, so the
   // batch recorder gets a PCM shadow (PcmTap). Online models commit their own
   // stream and every cloud lane wants the smaller WebM, so those get none.
-  _startPcmTap(stream) {
+  _startPcmTap() {
     const { useLocalWhisper, localTranscriptionProvider, parakeetModel } = getSettings();
     const offlineLocal =
       useLocalWhisper &&
@@ -1167,7 +1177,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       !(localTranscriptionProvider === "nvidia" && isOnlineParakeetModel(parakeetModel));
     if (!offlineLocal) return null;
     try {
-      return new PcmTap(stream, this.getWorkletBlobUrl());
+      return new PcmTap(this.getWorkletBlobUrl());
     } catch (e) {
       logger.debug("PCM tap unavailable", { error: e.message }, "audio");
       return null;
@@ -1292,6 +1302,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   async startRecording(forceDefaultMic = false) {
     let prepared = null;
     let preparedAdopted = false;
+    let freshTap = null;
     this._startInProgress = true;
     try {
       if (!this.isRecordingAllowedByPolicy()) {
@@ -1312,6 +1323,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       prepared = forceDefaultMic ? null : await this.preparedMicCapture.take();
       const constraints =
         prepared?.constraints ?? (await this.getAudioConstraints(forceDefaultMic));
+      // Without a prepared capture the tap starts here, before the mic opens.
+      freshTap = prepared ? null : this._startPcmTap();
       const micStream = prepared?.stream ?? (await this._acquireCaptureStream(constraints));
       const micReadyAt = performance.now();
 
@@ -1383,10 +1396,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // was adopted; a prepared stream without pre-roll contributes no audio
       // before this point, and back-dating would inflate durationSeconds.
       this.recordingStartTime = preRoll ? prepared.startedAt : Date.now();
-      // The tap shadows the recorder: adopted with the pre-roll (a tap started
-      // now would miss those frames), otherwise started alongside it.
-      this._batchPcmTap = preRoll ? prepared.pcmTap : this._startPcmTap(micStream);
+      // The tap shadows the recorder from its first frame: the pre-roll's own,
+      // or the one built before the mic opened. A tap started now would miss
+      // the opening, so an unusable pre-roll leaves the WebM path in charge.
+      this._batchPcmTap = preRoll ? prepared.pcmTap : freshTap;
       this.createBatchRecorder(micStream, preRoll);
+      freshTap?.attach(micStream);
       preparedAdopted = true;
       this.isRecording = true;
       this.onStateChange?.({
@@ -1463,6 +1478,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     } catch (error) {
       // A prepared value the recording never adopted still owns a live stream
       // (and possibly a pre-roll recorder); release it before any retry.
+      freshTap?.close();
       if (prepared && !preparedAdopted) this._disposePrepared(prepared);
       if (isStaleDeviceError(error) && !forceDefaultMic) {
         // Pinned mic is gone (Chromium rotates IDs / device unplugged). Retry once on the default mic. See #900.
@@ -1563,9 +1579,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const previewStopPromise = this.cleanupPreview({
       showCleanup: this.shouldShowPreviewCleanupState(),
     });
-    const pcmTap = this._batchPcmTap;
+    const rawWavPromise = this._batchPcmTap?.stop();
     this._batchPcmTap = null;
-    const rawWavPromise = pcmTap?.stop() ?? null;
     this.isRecording = false;
     this.isProcessing = true;
     this.onStateChange?.({
@@ -1639,7 +1654,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return;
     }
     this._streamingCommitActive = false;
-    const rawWav = rawWavPromise ? await rawWavPromise : null;
+    const rawWav = await rawWavPromise;
 
     await this.processAudio(
       audioBlob,
@@ -1679,7 +1694,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._previewSource = this._previewAudioContext.createMediaStreamSource(replacement);
         this._previewSource.connect(this._previewProcessor);
       }
-      this._batchPcmTap?.rebind(replacement);
+      this._batchPcmTap?.attach(replacement);
       this.createBatchRecorder(replacement);
     } finally {
       // Honor a stop/cancel that arrived mid-rotation even when the swap failed —
@@ -2029,7 +2044,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         model: activeModel || null,
       };
 
-      result = withSalvageWarning(result, metadata.salvagedRecording);
+      // A salvaged WebM only matters to whoever decoded it; the tap's WAV spans
+      // the whole recording.
+      result = withSalvageWarning(result, metadata.salvagedRecording && !result?.decodedRawWav);
 
       result = {
         ...result,
@@ -2267,7 +2284,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, rawText, source: "local", timings };
+          return {
+            success: true,
+            text: text || result.text,
+            rawText,
+            source: "local",
+            timings,
+            ...(metadata.rawWav ? { decodedRawWav: true } : {}),
+          };
         } else {
           throw new Error("No text transcribed");
         }
@@ -2377,6 +2401,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             source: "local-parakeet",
             timings,
             ...(result.warning ? { warning: result.warning } : {}),
+            ...(metadata.rawWav ? { decodedRawWav: true } : {}),
           };
         } else {
           throw new Error("No text transcribed");

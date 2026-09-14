@@ -214,9 +214,9 @@ function isPcm16Mono16kWav(buffer) {
   const format = parseWavFormat(buffer);
   return (
     format?.audioFormat === 1 &&
-    format?.channels === 1 &&
-    format?.sampleRate === 16000 &&
-    format?.bitsPerSample === 16
+    format.channels === 1 &&
+    format.sampleRate === 16000 &&
+    format.bitsPerSample === 16
   );
 }
 

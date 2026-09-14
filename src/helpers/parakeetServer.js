@@ -83,9 +83,8 @@ class ParakeetServerManager {
 
   async _ensureWav(audioBuffer) {
     if (isPcm16Mono16kWav(audioBuffer)) return { wavBuffer: audioBuffer, filesToCleanup: [] };
-    if (isWavFormat(audioBuffer)) {
-      debugLogger.debug("WAV input needs normalization", { format: parseWavFormat(audioBuffer) });
-    }
+    const format = parseWavFormat(audioBuffer);
+    if (format) debugLogger.debug("WAV input needs normalization", { format });
 
     const ffmpegPath = getFFmpegPath();
     if (!ffmpegPath) {

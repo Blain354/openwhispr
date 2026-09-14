@@ -1,3 +1,5 @@
+const { pcm16ToWav } = require("../../../src/utils/audioUtils");
+
 // Minimal RIFF/WAVE builders for tests that need a real header without FFmpeg.
 
 function wavHeader({
@@ -26,8 +28,7 @@ function wavHeader({
 
 // 16 kHz mono PCM16, the shape every local engine decodes as-is.
 function pcm16Mono16kWav(samples = [0, 100, -100, 200]) {
-  const data = Buffer.from(Int16Array.from(samples).buffer);
-  return Buffer.concat([wavHeader({ dataSize: data.length }), data]);
+  return pcm16ToWav(Buffer.from(Int16Array.from(samples).buffer));
 }
 
 module.exports = { wavHeader, pcm16Mono16kWav };
