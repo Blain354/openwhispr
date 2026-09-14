@@ -43,6 +43,42 @@ test("a single line longer than the budget is split at spaces, never dropped", a
   assert.equal(normalise(chunks.join(" ")), normalise(body));
 });
 
+test("long paragraphs classify each character a bounded number of times", async (t) => {
+  const { planNoteChunks } = await load();
+  const body = "word ".repeat(400).trim();
+  const originalCodePointAt = String.prototype.codePointAt;
+  let characterVisits = 0;
+  t.mock.method(String.prototype, "codePointAt", function (index) {
+    characterVisits += 1;
+    return originalCodePointAt.call(this, index);
+  });
+  const chunks = planNoteChunks(body, 512);
+  t.mock.restoreAll();
+
+  assert.equal(normalise(chunks.join(" ")), body);
+  // A few linear scans are fine; repeatedly rescanning each growing prefix is not.
+  assert.ok(characterVisits <= body.length * 8, `visited ${characterVisits} characters`);
+});
+
+test("mixed CJK and non-BMP words retain greedy packing and token rounding", async () => {
+  const { planNoteChunks } = await load();
+  assert.deepEqual(planNoteChunks("a 界 bc 𠀀 🚀 def ghi 会議 j klm", 5), [
+    "a 界 bc 𠀀 🚀",
+    "def ghi 会議",
+    "j klm",
+  ]);
+
+  const body = "a 界 bc 𠀀 🚀 def ghi 会議 j klm ".repeat(20).trim();
+  for (const budget of [5, 7, 11, 31, 100]) {
+    const chunks = planNoteChunks(body, budget);
+    assert.equal(chunks.join(" "), body);
+    for (const chunk of chunks) {
+      assert.ok(policy.estimateTokens(chunk) <= budget);
+      assert.ok(chunk.isWellFormed());
+    }
+  }
+});
+
 test("an unbroken run (CJK, no spaces) longer than the budget is sliced by tokens", async () => {
   const { planNoteChunks, estimateNoteTokens } = await load();
   const body = "会議".repeat(300);
@@ -58,11 +94,27 @@ test("empty and whitespace-only bodies plan to no chunks", async () => {
   assert.deepEqual(planNoteChunks("\n  \n", 100), []);
 });
 
-test("splitChunkInHalf halves on lines, then on words, and gives up on one word", async () => {
+test("splitChunkInHalf prefers lines, then words", async () => {
   const { splitChunkInHalf } = await load();
   assert.deepEqual(splitChunkInHalf("a\nb\nc\nd"), ["a\nb", "c\nd"]);
   assert.deepEqual(splitChunkInHalf("one two three four"), ["one two", "three four"]);
-  assert.equal(splitChunkInHalf("single"), null);
+  assert.deepEqual(splitChunkInHalf("single"), ["sin", "gle"]);
+});
+
+test("overflow splitting preserves Unicode code points in unbroken text", async () => {
+  const { splitChunkInHalf } = await load();
+  for (const text of ["会議".repeat(300), "𠀀𠀁𠀂𠀃𠀄", "a🚀界𠀀b"]) {
+    const halves = splitChunkInHalf(text);
+    assert.ok(halves, "an unbroken run must still be splittable");
+    assert.equal(halves.join(""), text);
+    const lengths = halves.map((half) => Array.from(half).length);
+    assert.ok(lengths.every((length) => length > 0 && length < Array.from(text).length));
+    assert.ok(Math.abs(lengths[0] - lengths[1]) <= 1);
+    assert.ok(halves.every((half) => half.isWellFormed()));
+  }
+  for (const text of ["", "  ", "\t\t", "a", "𠀀", "🚀"]) {
+    assert.equal(splitChunkInHalf(text), null);
+  }
 });
 
 test("the estimate agrees with llamaContextPolicy on Latin, CJK and mixed text", async () => {

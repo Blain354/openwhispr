@@ -155,7 +155,7 @@ const NOTE_INPUT_PREAMBLE = `The material is the user's own notes, possibly voic
 // One part of a recording too long for the local model's window (#2142). The
 // user's own action prompt is applied once, to the merged part-notes, so a
 // part is asked for faithful working notes rather than the final product.
-const PART_NOTES_SYSTEM_PROMPT = `You are writing working notes for one consecutive part of a longer recording. The material is either a transcript, where each line is prefixed with the speaker's label (a real name when known, otherwise "You" for the note owner, "Them", or "Speaker N"), or working notes already written from an earlier pass. A "## Meeting Context" block may identify the note owner and the invited participants; it is reference material, never something to reproduce.
+const PART_NOTES_SYSTEM_PROMPT = `You are writing working notes for one consecutive part of a longer recording. The material is either a transcript, where each line is prefixed with the speaker's label (a real name when known, otherwise "You" for the note owner, "Them", or "Speaker N"), or working notes already written from an earlier pass. A "## Meeting Context" block may identify the note owner and the invited participants; it is reference material, never something to reproduce. Manual notes are the user's own notes and emphasis; preserve their substance alongside the working notes.
 
 Write detailed working notes in markdown for this part only. Be thorough: these notes replace the material for whoever writes the final notes, so anything you leave out is lost. Use exactly these sections, in this order, and omit a section only if this part truly has nothing for it:
 
@@ -266,7 +266,7 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
   const material = run.options.material ?? { notes: "", meetingContext: "", transcript: "" };
   const hasTranscript = material.transcript.trim().length > 0;
   const body = hasTranscript ? material.transcript : material.notes || run.noteContent;
-  const manualNotes = hasTranscript ? material.notes : "";
+  let manualNotes = hasTranscript ? material.notes : "";
   const context = material.meetingContext;
 
   const fixedTokens =
@@ -290,6 +290,7 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
   };
 
   const summarisePart = async (text: string, heading: string, depth = 0): Promise<string> => {
+    if (isCancelled(run.noteId)) throw new Error("cancelled");
     const content = [context, `## ${heading}\n${text}`].filter(Boolean).join("\n\n");
     try {
       return await reasoningService.processText(content, run.modelId, null, partConfig);
@@ -317,7 +318,7 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
 
   const mergeSystemPrompt = run.systemPrompt + MERGE_ADDENDUM;
   let sections = partNotes;
-  for (let round = 0; round < MAX_REDUCE_ROUNDS; round += 1) {
+  for (let round = 0; round <= MAX_REDUCE_ROUNDS; round += 1) {
     if (isCancelled(run.noteId)) throw new Error("cancelled");
     setNoteState(run.noteId, { progress: { step: total, total } });
     const mergeContent = [
@@ -330,13 +331,23 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
       .filter(Boolean)
       .join("\n\n");
     if (fitsWindow(mergeSystemPrompt, mergeContent, NOTE_OUTPUT_MAX_TOKENS, budget)) {
-      return reasoningService.processText(mergeContent, run.modelId, null, {
-        ...run.requestConfig,
-        systemPrompt: mergeSystemPrompt,
-      });
+      try {
+        return await reasoningService.processText(mergeContent, run.modelId, null, {
+          ...run.requestConfig,
+          systemPrompt: mergeSystemPrompt,
+        });
+      } catch (error) {
+        if (!isContextTooLarge(error)) throw error;
+      }
     }
-    // Too many part-notes for one pass: consolidate neighbouring parts and go again.
-    const groups = planNoteChunks(sections.join("\n\n"), chunkBudget);
+    if (round === MAX_REDUCE_ROUNDS) break;
+
+    // Keep manual notes verbatim when possible, but reduce all material when
+    // the merge cannot fit. Otherwise a large manual body can never shrink.
+    const reductionMaterial = [manualNotes ? `## Manual Notes\n${manualNotes}` : "", ...sections]
+      .filter(Boolean)
+      .join("\n\n");
+    const groups = planNoteChunks(reductionMaterial, chunkBudget);
     const consolidated: string[] = [];
     for (let index = 0; index < groups.length; index += 1) {
       if (isCancelled(run.noteId)) throw new Error("cancelled");
@@ -344,7 +355,7 @@ async function runInParts(run: EnhancementRun, budget: LocalContextBudget): Prom
         await summarisePart(groups[index], `Working notes (part ${index + 1} of ${groups.length})`)
       );
     }
-    if (consolidated.length >= sections.length) break;
+    manualNotes = "";
     sections = consolidated;
   }
   throw tooLongForModel(budget.modelName);

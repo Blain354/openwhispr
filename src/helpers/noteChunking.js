@@ -69,23 +69,32 @@ function sliceByTokens(text, budgetTokens) {
 /** Splits one over-long line at spaces, then by tokens for unbroken runs. */
 function splitLongLine(line, budgetTokens) {
   const pieces = [];
-  let current = "";
+  let current = [];
+  let currentUnits = 0;
   for (const word of line.split(/\s+/)) {
     if (!word) continue;
-    const candidate = current ? `${current} ${word}` : word;
-    if (estimateNoteTokens(candidate) <= budgetTokens) {
-      current = candidate;
+    // Keep fractional tokens as integer units so rounding happens after packing.
+    let wordUnits = 0;
+    for (const character of word) {
+      wordUnits += isCjkCodePoint(character.codePointAt(0)) ? LATIN_CHARS_PER_TOKEN : 1;
+    }
+    const candidateUnits = currentUnits + wordUnits + (current.length > 0 ? 1 : 0);
+    if (Math.ceil(candidateUnits / LATIN_CHARS_PER_TOKEN) <= budgetTokens) {
+      current.push(word);
+      currentUnits = candidateUnits;
       continue;
     }
-    if (current) pieces.push(current);
-    if (estimateNoteTokens(word) <= budgetTokens) {
-      current = word;
+    if (current.length > 0) pieces.push(current.join(" "));
+    if (Math.ceil(wordUnits / LATIN_CHARS_PER_TOKEN) <= budgetTokens) {
+      current = [word];
+      currentUnits = wordUnits;
       continue;
     }
     pieces.push(...sliceByTokens(word, budgetTokens));
-    current = "";
+    current = [];
+    currentUnits = 0;
   }
-  if (current) pieces.push(current);
+  if (current.length > 0) pieces.push(current.join(" "));
   return pieces;
 }
 
@@ -117,7 +126,7 @@ export function planNoteChunks(body, budgetTokens) {
   return chunks.filter((chunk) => chunk.trim().length > 0);
 }
 
-/** Halves a chunk on lines, then on words; null when it cannot be split. */
+/** Halves a chunk on lines, words, then code points; null when it cannot be split. */
 export function splitChunkInHalf(chunk) {
   const lines = chunk.split("\n");
   if (lines.length >= 2) {
@@ -125,7 +134,13 @@ export function splitChunkInHalf(chunk) {
     return [lines.slice(0, middle).join("\n"), lines.slice(middle).join("\n")];
   }
   const words = chunk.split(/\s+/).filter(Boolean);
-  if (words.length < 2) return null;
-  const middle = Math.ceil(words.length / 2);
-  return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+  if (words.length === 0) return null;
+  if (words.length >= 2) {
+    const middle = Math.ceil(words.length / 2);
+    return [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+  }
+  const characters = Array.from(chunk);
+  if (characters.length < 2) return null;
+  const middle = Math.ceil(characters.length / 2);
+  return [characters.slice(0, middle).join(""), characters.slice(middle).join("")];
 }
