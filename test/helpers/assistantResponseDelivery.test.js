@@ -116,6 +116,19 @@ test("the clipboard fallback of a refused plain-text paste carries the same stri
   assert.deepEqual(writes, [PLAIN_RESPONSE]);
 });
 
+test("an answer the strip empties is pasted raw rather than as nothing", async () => {
+  const { deliverAssistantResponse } = await deliveryModule;
+  const { dependencies, pastes, writes } = createDeliveryHarness(true);
+  const ONLY_SYNTAX = "---\n```\n```";
+
+  assert.deepEqual(await deliverAssistantResponse(PASTE_DELIVERY, ONLY_SYNTAX, dependencies), {
+    pasted: true,
+    copied: false,
+  });
+  assert.equal(pastes[0].text, ONLY_SYNTAX);
+  assert.deepEqual(writes, []);
+});
+
 test("a markdown-friendly caret target receives the response verbatim", async () => {
   const { deliverAssistantResponse } = await deliveryModule;
   const { dependencies, pastes } = createDeliveryHarness(true);

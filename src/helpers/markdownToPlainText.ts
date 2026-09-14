@@ -7,6 +7,11 @@
 // The rules only touch syntax a human would not type in plain text. A `- `
 // bullet, a `1.` number, `2 * 3`, snake_case, `#hashtag` and `x > y` are all
 // left exactly as written.
+//
+// The inline rules are applied per line, so emphasis that spans a line break
+// and setext (underlined) headings are out of scope: the prompt suffix that
+// asks the model for plain prose is the primary defence, and this helper is
+// the floor under a model that drifts back to markdown.
 
 const FENCE_LINE = /^\s*(`{3,}|~{3,}).*$/;
 const HORIZONTAL_RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
@@ -47,7 +52,12 @@ function stripInline(text: string): string {
     // Escapes resolve last so an escaped marker is never re-stripped.
     .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, "$1");
 
-  return stripped.replace(CODE_PLACEHOLDER, (_match, index: string) => codeSpans[Number(index)]);
+  // A placeholder sequence the input itself contained resolves to no captured
+  // span; leave it exactly as it arrived rather than splicing "undefined".
+  return stripped.replace(
+    CODE_PLACEHOLDER,
+    (match: string, index: string) => codeSpans[Number(index)] ?? match
+  );
 }
 
 export function markdownToPlainText(markdown: string): string {

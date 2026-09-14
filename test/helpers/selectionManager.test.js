@@ -896,4 +896,8 @@ test("a successful paste logs no decline and one debug line carrying the markdow
   assert.equal(successes[0].level, "debug");
   assert.equal(successes[0].meta.platform, "darwin");
   assert.equal(successes[0].meta.acceptsMarkdown, true);
+  // The AX target carries no exe name, window class or app name, so the
+  // signature the verdict matched on is empty here and logs as null.
+  assert.ok("targetSignature" in successes[0].meta);
+  assert.equal(successes[0].meta.targetSignature, null);
 });

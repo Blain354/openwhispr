@@ -96,3 +96,12 @@ test("inline code content is verbatim, never run through other inline rules", as
   assert.equal(markdownToPlainText("inline `**not bold**` code"), "inline **not bold** code");
   assert.equal(markdownToPlainText("`C:\\Users\\me`"), "C:\\Users\\me");
 });
+
+test("a literal placeholder sequence in the input survives the restore step", async () => {
+  const { markdownToPlainText } = await helperModule;
+  // The private-use placeholders are an internal device; text that happens to
+  // contain the same sequence indexes no captured span and must come back as
+  // it arrived rather than as "undefined".
+  const answer = "text with \u{E000}0\u{E001} literal";
+  assert.equal(markdownToPlainText(answer), answer);
+});

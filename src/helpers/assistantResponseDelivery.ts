@@ -86,8 +86,11 @@ export async function deliverAssistantResponse(
     // under a model that drifts back to markdown. It covers the clipboard
     // fallback too: a refused paste leaves the user about to paste the same
     // text by hand into the same field. A markdown-friendly target (Obsidian,
-    // an AI prompt box) gets the answer exactly as written.
-    const text = delivery.plainText ? markdownToPlainText(content) : content;
+    // an AI prompt box) gets the answer exactly as written. A strip that
+    // leaves nothing at all — an answer that is only fences and rules — falls
+    // back to the raw answer, because pasting the markdown beats pasting
+    // nothing into the user's field.
+    const text = delivery.plainText ? markdownToPlainText(content) || content : content;
     try {
       const result = await electronAPI?.pasteAtCapturedTarget?.(delivery.sessionId, text, {
         restoreClipboard: delivery.restoreClipboard,

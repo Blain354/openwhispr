@@ -184,6 +184,11 @@ class SelectionManager {
           kind: "caret",
           target: capture.target,
           acceptsMarkdown,
+          // App identity, never user content: what the markdown verdict was
+          // matched against, so a success log can say why. Windows and Linux
+          // name the app on the target; a macOS AX target carries none, so
+          // this is empty there — honest rather than invented.
+          targetSignature: this._targetSignature(capture.target) || null,
           expiresAt: this.now() + SESSION_TTL_MS,
         });
         return { status: "editable", sessionId, acceptsMarkdown };
@@ -307,6 +312,7 @@ class SelectionManager {
           {
             targetKind: session.target?.kind ?? null,
             acceptsMarkdown: session.acceptsMarkdown === true,
+            targetSignature: session.targetSignature ?? null,
             platform: this.platform,
           },
           "clipboard"
