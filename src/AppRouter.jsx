@@ -23,10 +23,28 @@ const isOnboardingInProgress = () =>
 
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
+const ConversationSession = React.lazy(() => import("./voice-agent/ui/SessionRoot.tsx"));
+const ConversationCompanion = React.lazy(() => import("./voice-agent/ui/CompanionRoot.tsx"));
 
 export default function AppRouter() {
   useTheme();
   const params = window.location.search;
+
+  if (params.includes("conversation-session=true")) {
+    return (
+      <Suspense fallback={null}>
+        <ConversationSession />
+      </Suspense>
+    );
+  }
+
+  if (params.includes("conversation-companion=true")) {
+    return (
+      <Suspense fallback={null}>
+        <ConversationCompanion />
+      </Suspense>
+    );
+  }
 
   if (params.includes("meeting-notification=true")) {
     return <MeetingNotificationOverlay />;

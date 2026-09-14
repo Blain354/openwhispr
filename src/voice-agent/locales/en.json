@@ -40,5 +40,55 @@
     "failed": "The script failed (exit code {{code}}).",
     "timedOut": "The script was stopped after {{seconds}} seconds.",
     "succeeded": "The script ran successfully."
+  },
+  "session": {
+    "title": "Conversation",
+    "stop": "End session",
+    "ended": "Session ended",
+    "emptyHint": "Speak after the companion turns blue. Your transcript and the assistant's replies appear here.",
+    "hotkeyHint": "Press {{hotkey}} to end the session.",
+    "notPersisted": "This session is not saved: cloud backup is on and saving voice sessions needs your consent.",
+    "settings": {
+      "title": "Conversation settings",
+      "hotkey": "Session hotkey",
+      "save": "Save",
+      "saved": "Hotkey saved.",
+      "model": "Local model",
+      "language": "Speech language"
+    }
+  },
+  "companion": {
+    "stop": "End the conversation",
+    "states": {
+      "idle": "Idle",
+      "starting": "Starting",
+      "listening": "Listening",
+      "user_speaking": "Hearing you",
+      "thinking": "Thinking",
+      "speaking": "Speaking",
+      "confirming": "Confirm on screen",
+      "stopping": "Stopping",
+      "error": "Error"
+    }
+  },
+  "hotkey": {
+    "errors": {
+      "empty": "Choose a hotkey.",
+      "modifierOnly": "Add a key to the modifiers (for example Control+Alt+Space).",
+      "rightSideModifier": "Right-side modifiers are not supported for this hotkey.",
+      "multipleKeys": "Use a single key with modifiers.",
+      "needsModifier": "Add at least one modifier, or use a function key.",
+      "windowsReserved": "Windows already uses this shortcut.",
+      "duplicate": "Already used by the {{slot}} hotkey.",
+      "startsWith": "Starts with the {{slot}} hotkey, which would fire too.",
+      "registrationFailed": "Windows refused this shortcut; another application may own it.",
+      "unavailable": "Hotkeys are not available yet."
+    },
+    "warnings": {
+      "powertoysRun": "PowerToys Run uses Alt+Space by default.",
+      "commandPalette": "PowerToys Command Palette uses this shortcut by default."
+    },
+    "unavailableTitle": "Conversation hotkey unavailable",
+    "unavailableBody": "{{hotkey}} is already used by another application. Click to open the conversation settings and pick another hotkey."
   }
 }

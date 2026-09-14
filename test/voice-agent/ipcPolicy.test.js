@@ -70,3 +70,29 @@ test("unknown ops and prototype keys are refused", () => {
   assert.equal(isOpAllowed({ windowKind: "session", op: "constructor", toolsInChat: true }), false);
   assert.equal(isOpAllowed({ windowKind: "session", op: "__proto__", toolsInChat: true }), false);
 });
+
+test("the companion overlay may only read state and stop the session", () => {
+  assert.equal(
+    isOpAllowed({ windowKind: "companion", op: "session.getState", toolsInChat: false }),
+    true
+  );
+  assert.equal(
+    isOpAllowed({ windowKind: "companion", op: "session.stop", toolsInChat: false }),
+    true
+  );
+  for (const op of ["config.setHotkey", "config.get", "session.debugEvent", "os.openApp"]) {
+    assert.equal(isOpAllowed({ windowKind: "companion", op, toolsInChat: true }), false, op);
+  }
+});
+
+test("session and configuration ops are never available to upstream chat windows", () => {
+  for (const windowKind of ["main", "control-panel"]) {
+    for (const op of ["session.stop", "config.setHotkey", "session.debugProbe"]) {
+      assert.equal(
+        isOpAllowed({ windowKind, op, toolsInChat: true }),
+        false,
+        `${windowKind} ${op}`
+      );
+    }
+  }
+});

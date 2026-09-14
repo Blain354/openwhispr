@@ -8,6 +8,13 @@ const OP_RULES = {
   "os.focusWindow": { session: true, chat: true },
   "os.setDisplays": { session: true, chat: true },
   "os.runPowershell": { session: true, chat: true },
+  "session.getState": { session: true, companion: true },
+  "session.stop": { session: true, companion: true },
+  "config.get": { session: true },
+  "config.setHotkey": { session: true },
+  // Development-only probes; their handlers refuse outside NODE_ENV=development.
+  "session.debugEvent": { session: true },
+  "session.debugProbe": { session: true },
 };
 
 const CHAT_WINDOW_KINDS = new Set(["main", "control-panel"]);

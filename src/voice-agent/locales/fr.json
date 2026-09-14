@@ -40,5 +40,55 @@
     "failed": "Le script a échoué (code {{code}}).",
     "timedOut": "Le script a été arrêté après {{seconds}} secondes.",
     "succeeded": "Le script s'est exécuté."
+  },
+  "session": {
+    "title": "Conversation",
+    "stop": "Terminer la session",
+    "ended": "Session terminée",
+    "emptyHint": "Parle quand le compagnon devient bleu. Ta transcription et les réponses de l'assistant s'affichent ici.",
+    "hotkeyHint": "Appuie sur {{hotkey}} pour terminer la session.",
+    "notPersisted": "Cette session n'est pas enregistrée : la sauvegarde cloud est active et l'enregistrement des sessions vocales demande ton accord.",
+    "settings": {
+      "title": "Réglages de la conversation",
+      "hotkey": "Raccourci de session",
+      "save": "Enregistrer",
+      "saved": "Raccourci enregistré.",
+      "model": "Modèle local",
+      "language": "Langue parlée"
+    }
+  },
+  "companion": {
+    "stop": "Terminer la conversation",
+    "states": {
+      "idle": "En veille",
+      "starting": "Démarrage",
+      "listening": "À l'écoute",
+      "user_speaking": "Je t'entends",
+      "thinking": "Réflexion",
+      "speaking": "Parle",
+      "confirming": "Confirme à l'écran",
+      "stopping": "Arrêt",
+      "error": "Erreur"
+    }
+  },
+  "hotkey": {
+    "errors": {
+      "empty": "Choisis un raccourci.",
+      "modifierOnly": "Ajoute une touche aux modificateurs (par exemple Control+Alt+Space).",
+      "rightSideModifier": "Les modificateurs de droite ne sont pas pris en charge pour ce raccourci.",
+      "multipleKeys": "Utilise une seule touche avec des modificateurs.",
+      "needsModifier": "Ajoute au moins un modificateur, ou utilise une touche de fonction.",
+      "windowsReserved": "Windows utilise déjà ce raccourci.",
+      "duplicate": "Déjà utilisé par le raccourci {{slot}}.",
+      "startsWith": "Commence par le raccourci {{slot}}, qui se déclencherait aussi.",
+      "registrationFailed": "Windows a refusé ce raccourci ; une autre application le détient peut-être.",
+      "unavailable": "Les raccourcis ne sont pas encore disponibles."
+    },
+    "warnings": {
+      "powertoysRun": "PowerToys Run utilise Alt+Space par défaut.",
+      "commandPalette": "La Command Palette de PowerToys utilise ce raccourci par défaut."
+    },
+    "unavailableTitle": "Raccourci de conversation indisponible",
+    "unavailableBody": "{{hotkey}} est déjà utilisé par une autre application. Clique pour ouvrir les réglages de la conversation et choisir un autre raccourci."
   }
 }

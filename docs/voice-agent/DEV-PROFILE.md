@@ -59,6 +59,15 @@ the dev instance rewrites `~/.openwhispr/cli-bridge.json`.
 `toolsInChat` can also be set here, but the environment variable in step 1 is the intended way
 during development.
 
+### When the hotkey is already taken
+
+Windows refuses a global hotkey that another application registered first. On the reference machine
+`Control+Alt+Space` and `Alt+F9` were both taken; `Control+Alt+K`, `Control+Alt+F9` and
+`Control+Shift+Space` were free. When registration fails at startup, a notification appears:
+click it to open the conversation window and pick another hotkey in its settings (the choice is
+validated against Windows shortcuts and the other OpenWhispr hotkeys, then saved to
+`config.json`).
+
 ## 6. Checks
 
 - Control panel chat: "open Notepad" calls `open_app` and Notepad starts.

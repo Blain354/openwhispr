@@ -883,6 +883,7 @@ class WindowManager {
   }
 
   _shouldBlockDictationInput(inputKind) {
+    if (this.isConversationActive?.() && !this._isDictatingToggle) return true;
     const blocked = shouldBlockDictationWhilePanelOpen({
       assistantPanelOpen: this._assistantPanelOpen,
       assistantPanelBusy: this._assistantPanelBusy,
