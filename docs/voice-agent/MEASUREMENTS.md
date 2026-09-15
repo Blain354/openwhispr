@@ -160,3 +160,42 @@ over a vault that has grown by a day of notes. The walk is the suspect and is wo
 of its own before the next release. The guard checks all held: declared tools listed, an undeclared
 one hidden and refused, a read without a dialog, a write only after its confirmation, and
 `60_Sante/…`, `.obsidian/…` and `../../Windows/win.ini` all refused.
+
+## Turn-taking and transcription on a real headset (2026-09-15)
+
+Reported after the first real-microphone session: the assistant answered as soon as the user
+paused to think, and the transcription seemed worse than dictation.
+
+**Microphone.** The sidecar opened PyAudio's default input instead of the device OpenWhispr uses;
+fixed. Once the right device was open, the headset carried the voice at rms 28 / peak 412 while
+counting aloud — about 0.49 on Pipecat's -110..-10 LUFS loudness scale, under its 0.6 speech floor —
+so no turn ever started. The floor is now 0.4.
+
+**Why a pause ended the turn.** A turn ended 0.6 s after the last speech (VAD stop 0.2 s, then a
+0.4 s speech timeout).
+
+| Turn-end option                                     | Measured                                                                                    | Cost                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------- |
+| Smart Turn v3.2 (local audio model, CPU)            | 8/10 on French clips: a complete question judged unfinished, a 45 % cut judged finished     | one inference per pause   |
+| LLM verdict, Pipecat's English instructions         | 23/28 right decisions; never silent on a real request (0/10); spoke instead of waiting 5/18 | ~75 ms per silent verdict |
+| LLM verdict, French translation and French examples | 18/28; spoke instead of waiting 10/18, including on « C'est, j'aimerais que tu lances »     | the same                  |
+| A longer fixed silence (~1.5 s)                     | not measured                                                                                | ~1 s added to every reply |
+
+Qwen3.5 4B, 14 French utterances twice each (five of them in neither prompt's examples), prompts
+composed as the service sends them. Kept: the LLM verdict with Pipecat's own instructions, without
+the spoken nudge Pipecat adds after 5 s / 10 s. When it answered instead of waiting, it asked for
+the missing detail rather than saying it did not understand.
+
+**Transcription.** The same weights as dictation (Whisper large-v3-turbo; the last five dictations
+in the history are local `turbo`). On eight recorded utterances:
+
+- beam 5 instead of 1: identical text, about 210 ms either way;
+- the headset's level (peak 412), with or without normalization, or with French forced: no
+  meaningful change;
+- dictation runs an AI cleanup after Whisper (the final text differs from the raw text on all six
+  recent dictations) and biases Whisper with the user's 78-word dictionary; the session had
+  neither. The dictionary is now passed as hotwords. The cleanup is not: the model understands
+  disfluent speech, and it would add a round trip before every reply.
+- The recordings are synthetic speech. They cannot show what a real, hesitant voice loses when a
+  pause splits a sentence into separately transcribed pieces — which the turn-taking change
+  removes.

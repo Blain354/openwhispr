@@ -102,3 +102,24 @@ test("Whisper is given the app and project names as hotwords", () => {
   );
   assert.equal(hotwordsFor({}, listDirs), "OpenWhispr");
 });
+
+test("the user's dictionary follows the app and project names, in a bounded prompt", () => {
+  const listDirs = (parent) => (parent === "C:\\code" ? ["blain-infra"] : []);
+  const config = { workerProjectRoots: ["C:\\code\\*"] };
+  assert.equal(
+    hotwordsFor(config, listDirs, ["Claude", "Bambu Studio", " ", null, "blain-infra"]),
+    "OpenWhispr, blain-infra, Claude, Bambu Studio"
+  );
+
+  const many = Array.from({ length: 400 }, (_, i) => `mot${i}`);
+  const hotwords = hotwordsFor(config, listDirs, many);
+  assert.ok(hotwords.length <= 1200, `length ${hotwords.length}`);
+  assert.ok(hotwords.startsWith("OpenWhispr, blain-infra, mot0, mot1"));
+  assert.match(hotwords, /mot\d+$/, "the budget never cuts a word or leaves a separator");
+});
+
+test("without a dictionary the hotwords are what they were", () => {
+  const listDirs = () => [];
+  assert.equal(hotwordsFor({}, listDirs), "OpenWhispr");
+  assert.equal(hotwordsFor({}, listDirs, []), "OpenWhispr");
+});

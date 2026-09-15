@@ -81,7 +81,7 @@ function describeCodes(codes, table) {
   });
 }
 
-function install({ windowManager, whisperManager, debugLogger }) {
+function install({ windowManager, whisperManager, debugLogger, databaseManager }) {
   if (installed) return installed;
 
   const userDataDir = app.getPath("userData");
@@ -113,6 +113,8 @@ function install({ windowManager, whisperManager, debugLogger }) {
   let vram = null;
   runtime = createConversationRuntime({
     userDataDir,
+    // The user's custom dictionary, handed to Whisper as hotwords (never leaves the machine).
+    getDictionary: () => databaseManager?.getDictionary() ?? [],
     getConfig: () => config,
     sessionController,
     conversationWindows,

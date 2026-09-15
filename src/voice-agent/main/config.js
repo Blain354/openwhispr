@@ -17,6 +17,9 @@ const DEFAULTS = Object.freeze({
   inputDevice: "",
   // Loudness floor for speech detection (0..1). Pipecat's 0.6 ignores a quiet headset.
   vadMinVolume: 0.4,
+  // A pause to think is not the end of a turn: the model says whether the user has finished
+  // (sidecar turn_completion.py). Off: the reply starts after a fixed silence, as before.
+  waitForCompleteTurns: true,
   confirmDelegation: true,
   // Background workers: project folders (a folder, or "parent/*" for its sub-folders), the notes
   // vault they must never touch, the Claude Code executable (empty: ~/.local/bin/claude) and a
@@ -61,6 +64,9 @@ function sanitize(raw) {
   if (typeof raw.inputDevice === "string") out.inputDevice = raw.inputDevice.trim().slice(0, 200);
   if (typeof raw.vadMinVolume === "number" && Number.isFinite(raw.vadMinVolume)) {
     out.vadMinVolume = Math.min(0.9, Math.max(0.1, raw.vadMinVolume));
+  }
+  if (typeof raw.waitForCompleteTurns === "boolean") {
+    out.waitForCompleteTurns = raw.waitForCompleteTurns;
   }
   if (typeof raw.confirmDelegation === "boolean") out.confirmDelegation = raw.confirmDelegation;
   if (Array.isArray(raw.workerProjectRoots)) {

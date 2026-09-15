@@ -35,13 +35,48 @@ const SYSTEM_PROMPT = [
   "N'affirme jamais qu'une action a réussi si le résultat de l'outil ne le dit pas.",
 ].join(" ");
 
+// Same budget as the sidecar's HOTWORDS_MAX_CHARS; faster-whisper keeps the first 223 tokens.
+const HOTWORDS_MAX_CHARS = 1200;
+
 /**
- * Proper nouns Whisper should hear correctly: the app and the configured project folders.
- * Whisper transcribed "blain-infra" as "Blin Infra" without them.
+ * Proper nouns Whisper should hear correctly: the app, the configured project folders, then the
+ * user's own dictionary — the words dictation is already biased with. Whisper transcribed
+ * "blain-infra" as "Blin Infra" without them. The string is bounded and never cuts a word.
  */
-function hotwordsFor(config, listDirs) {
-  const names = projectCandidates(config.workerProjectRoots || [], listDirs).map((c) => c.name);
-  return [...new Set(["OpenWhispr", ...names])].slice(0, 12).join(", ");
+function hotwordsFor(config, listDirs, dictionary = []) {
+  const names = projectCandidates(config.workerProjectRoots || [], listDirs)
+    .map((c) => c.name)
+    .slice(0, 11);
+  const candidates = [
+    "OpenWhispr",
+    ...names,
+    ...dictionary.map((word) => String(word ?? "").trim()),
+  ];
+  const words = [];
+  let length = 0;
+  for (const word of new Set(candidates)) {
+    if (!word) continue;
+    const added = (words.length ? 2 : 0) + word.length;
+    if (length + added > HOTWORDS_MAX_CHARS) break;
+    words.push(word);
+    length += added;
+  }
+  return words.join(", ");
+}
+
+function dictionaryWords(getDictionary, debugLogger) {
+  try {
+    const words = getDictionary();
+    return Array.isArray(words) ? words : [];
+  } catch (error) {
+    // A session without the dictionary still works; it only hears the user's names less well.
+    debugLogger?.warn?.(
+      "Custom dictionary unavailable for the voice session",
+      { error: error.message },
+      "conversation"
+    );
+    return [];
+  }
 }
 
 function listProjectDirs(parent) {
@@ -124,6 +159,7 @@ function harnessArgs(env = process.env) {
 }
 
 function createConversationRuntime({
+  getDictionary = () => [],
   userDataDir,
   getConfig,
   sessionController,
@@ -263,7 +299,13 @@ function createConversationRuntime({
           tools: selectVoiceTools(tools),
           systemPrompt: SYSTEM_PROMPT,
           sttLanguage: config.sttLanguage,
-          hotwords: hotwordsFor(config, listProjectDirs),
+          hotwords: hotwordsFor(
+            config,
+            listProjectDirs,
+            dictionaryWords(getDictionary, debugLogger)
+          ),
+          // The model decides whether the user has finished before anything is spoken.
+          waitForCompleteTurns: config.waitForCompleteTurns,
           bargeIn: config.bargeIn,
           // The microphone the app itself is using: the sidecar's own default is PyAudio's,
           // which is not always the one the user picked in OpenWhispr.

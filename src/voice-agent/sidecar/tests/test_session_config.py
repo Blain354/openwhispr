@@ -2,6 +2,7 @@ import pytest
 
 from ow_conversation.session_config import (
     DEFAULT_VAD_MIN_VOLUME,
+    HOTWORDS_MAX_CHARS,
     MAX_TOOLS,
     parse_session_config,
     stt_language_code,
@@ -73,12 +74,12 @@ def test_hotwords_are_kept_bounded():
     cfg = parse_session_config(
         {
             "llm": {"baseURL": "http://127.0.0.1:8222/v1", "local": True},
-            "hotwords": "OpenWhispr, blain-infra, " + "x" * 400,
+            "hotwords": "OpenWhispr, blain-infra, " + "x" * 2000,
             "kokoro": KOKORO,
         }
     )
     assert cfg.hotwords.startswith("OpenWhispr, blain-infra")
-    assert len(cfg.hotwords) == 300
+    assert len(cfg.hotwords) == HOTWORDS_MAX_CHARS
 
 
 def test_the_speech_loudness_floor_defaults_below_pipecats_and_stays_in_band():

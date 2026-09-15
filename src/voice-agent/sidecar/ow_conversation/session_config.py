@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 MAX_TOOLS = 12
+# Same budget as runtime.js: the app, project names and the user's dictionary. faster-whisper
+# keeps the first 223 tokens of it.
+HOTWORDS_MAX_CHARS = 1200
 _TOOL_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _LOOPBACK_PREFIXES = ("http://127.0.0.1:", "http://localhost:", "http://[::1]:")
 
@@ -24,6 +27,7 @@ class SessionConfig:
     barge_in: str
     input_device: str
     vad_min_volume: float
+    wait_for_complete_turns: bool
     whisper_model: str
     kokoro_model_path: str
     kokoro_voices_path: str
@@ -104,10 +108,12 @@ def parse_session_config(data: dict[str, Any], *, api_key: str | None = None) ->
         system_prompt=str(data.get("systemPrompt") or ""),
         tools=tuple(tool_specs(data.get("tools"))),
         stt_language=stt_language_code(data.get("sttLanguage")),
-        hotwords=str(data.get("hotwords") or "")[:300],
+        hotwords=str(data.get("hotwords") or "")[:HOTWORDS_MAX_CHARS],
         barge_in="interrupt" if data.get("bargeIn") == "interrupt" else "mute",
         input_device=str(data.get("inputDevice") or "")[:200],
         vad_min_volume=vad_min_volume(data.get("vadMinVolume")),
+        # On unless the app says otherwise: an older app sends nothing and still gets it.
+        wait_for_complete_turns=data.get("waitForCompleteTurns") is not False,
         whisper_model=str(data.get("whisperModel") or "deepdml/faster-whisper-large-v3-turbo-ct2"),
         kokoro_model_path=model_path,
         kokoro_voices_path=voices_path,

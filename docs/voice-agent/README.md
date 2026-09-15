@@ -190,3 +190,20 @@ while dictation keeps working.
   peak 412 while counting aloud sits near 0.49 and was never detected, while push-to-talk
   dictation (no VAD, Chromium's automatic gain) worked. The floor defaults to **0.4** here, and
   `vadMinVolume` in `config.json` tunes it (clamped to 0.1–0.9).
+
+## Waiting for a finished turn
+
+A pause to think is not the end of a turn. After a short silence the model is asked, and its reply
+starts with a marker: `●` is spoken; `◐` (cut off mid-sentence) and `○` (thinking) keep the turn
+open in silence, and what the user says next joins it (`sidecar/ow_conversation/turn_completion.py`,
+numbers in `MEASUREMENTS.md`).
+
+- Pipecat's own instructions are used: a French translation measured worse (18/28 against 23/28).
+- Pipecat re-prompts the model after 5 s / 10 s so that it nudges the user. That timer is pushed out
+  of reach; Pipecat cancels it when the user speaks again.
+- Pipecat appends these instructions, and its async-tool guidance, to the system prompt itself.
+  The warm-up request composes the same text (`composed_system_prompt`), and a test checks the two
+  are identical: a different prefix would make the first spoken turn process the whole prompt.
+- `waitForCompleteTurns: false` in `config.json` restores the fixed silence.
+- The user's custom dictionary is passed to Whisper as hotwords, after the app and project names,
+  within 1,200 characters (faster-whisper keeps the first 223 tokens).

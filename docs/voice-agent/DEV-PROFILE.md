@@ -52,9 +52,16 @@ the dev instance rewrites `~/.openwhispr/cli-bridge.json`.
   "conversationModel": "qwen3.5-4b-q4_k_m",
   "sttLanguage": "auto",
   "bargeIn": "mute",
-  "confirmDelegation": true
+  "confirmDelegation": true,
+  "inputDevice": "",
+  "vadMinVolume": 0.4,
+  "waitForCompleteTurns": true
 }
 ```
+
+- `inputDevice`: empty follows the microphone OpenWhispr uses; a device name forces one.
+- `vadMinVolume`: loudness floor for speech (0.1–0.9, default 0.4); lower it for a quiet headset.
+- `waitForCompleteTurns`: let the model wait until the user has finished speaking (default on).
 
 `toolsInChat` can also be set here, but the environment variable in step 1 is the intended way
 during development.

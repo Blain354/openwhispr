@@ -42,6 +42,7 @@ from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.observers.user_bot_latency_observer import LatencyBreakdown, UserBotLatencyObserver
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
+from pipecat.processors.aggregators.async_tool_messages import ASYNC_TOOL_INSTRUCTIONS
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
@@ -57,7 +58,8 @@ from pipecat.transports.local.audio import LocalAudioTransport, LocalAudioTransp
 from pipecat.turns.user_mute import FunctionCallUserMuteStrategy
 from pipecat.turns.user_start import TranscriptionUserTurnStartStrategy, VADUserTurnStartStrategy
 from pipecat.turns.user_stop import SpeechTimeoutUserTurnStopStrategy
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
+from pipecat.turns.user_turn_completion_mixin import UserTurnCompletionConfig
+from pipecat.turns.user_turn_strategies import FilterIncompleteUserTurnStrategies, UserTurnStrategies
 from pipecat.utils.time import time_now_iso8601
 from pipecat.utils.types import assert_given
 from pipecat.workers.runner import WorkerRunner
@@ -69,6 +71,7 @@ from .mute import SessionMuteStrategy
 from .session_config import SessionConfig
 from .text_aggregator import FirstClauseTextAggregator
 from .tools_bridge import CONFIRMABLE_TOOLS, SPOKEN_ACKS, ToolBridge
+from .turn_completion import NEVER_NUDGE_SECS, system_prompt_for
 
 CONFIRM_PHRASE = "Confirme à l'écran."
 NO_SPEECH_PROB = 0.6
@@ -349,6 +352,16 @@ def build_services(cfg: SessionConfig, device: str):
     return stt, llm, tts
 
 
+def composed_system_prompt(cfg: SessionConfig) -> str:
+    """The system prompt the LLM service will really send (turn_completion.system_prompt_for)."""
+    turn_config = getattr(turn_strategies(cfg), "config", None)
+    return system_prompt_for(
+        cfg.system_prompt,
+        turn_instructions=turn_config.completion_instructions if turn_config else "",
+        async_tool_instructions=ASYNC_TOOL_INSTRUCTIONS,
+    )
+
+
 async def warm_llm(cfg: SessionConfig) -> float:
     """Make the model server process the system prompt and the tool schemas once, up front.
 
@@ -362,7 +375,7 @@ async def warm_llm(cfg: SessionConfig) -> float:
     request: dict[str, Any] = {
         "model": cfg.llm_model,
         "messages": [
-            {"role": "system", "content": cfg.system_prompt},
+            {"role": "system", "content": composed_system_prompt(cfg)},
             {"role": "user", "content": "ping"},
         ],
         "max_completion_tokens": 1,
@@ -393,6 +406,29 @@ async def warm_llm(cfg: SessionConfig) -> float:
     finally:
         await client.close()
     return time.perf_counter() - started
+
+
+def turn_strategies(cfg: SessionConfig) -> UserTurnStrategies:
+    """When the user's turn ends.
+
+    A short silence asks the model. With ``wait_for_complete_turns`` its verdict decides: ● is
+    answered, ◐ (cut off) and ○ (thinking) keep the turn open in silence. Pipecat's own
+    instructions are used, and its spoken nudge after 5 s / 10 s is pushed out of reach
+    (see turn_completion.py for the measurements behind both).
+    """
+    start = [VADUserTurnStartStrategy(), TranscriptionUserTurnStartStrategy()]
+    # An explicit detector: Pipecat's default loads Smart Turn v3.2 (8/10 on French test clips).
+    stop = [SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=TURN_STOP_TIMEOUT_SECS)]
+    if not cfg.wait_for_complete_turns:
+        return UserTurnStrategies(start=start, stop=stop)
+    return FilterIncompleteUserTurnStrategies(
+        start=start,
+        stop=stop,
+        config=UserTurnCompletionConfig(
+            incomplete_short_timeout=NEVER_NUDGE_SECS,
+            incomplete_long_timeout=NEVER_NUDGE_SECS,
+        ),
+    )
 
 
 def resolve_microphone(wanted: str) -> DeviceChoice:
@@ -461,11 +497,7 @@ class VoiceBot:
                 vad_analyzer=SileroVADAnalyzer(
                     params=VADParams(stop_secs=0.2, min_volume=cfg.vad_min_volume)
                 ),
-                user_turn_strategies=UserTurnStrategies(
-                    start=[VADUserTurnStartStrategy(), TranscriptionUserTurnStartStrategy()],
-                    # Explicit stop strategy: the default loads Smart Turn v3 (English-tuned).
-                    stop=[SpeechTimeoutUserTurnStopStrategy(user_speech_timeout=TURN_STOP_TIMEOUT_SECS)],
-                ),
+                user_turn_strategies=turn_strategies(cfg),
                 user_mute_strategies=[self.mute, FunctionCallUserMuteStrategy()],
             ),
         )

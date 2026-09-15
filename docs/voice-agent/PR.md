@@ -25,17 +25,17 @@ registered and the preload bridge exposes nothing.
 
 ## Upstream files touched
 
-| File                                | Change                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------ |
-| `main.js`                           | one `require(...).install({ windowManager, whisperManager, debugLogger })`     |
-| `src/services/tools/index.ts`       | one import and one `registerConversationTools(registry, settings)` call        |
-| `src/AppRouter.jsx`                 | two query-param branches for the session window and the companion overlay      |
-| `src/helpers/windowManager.js`      | one line in `_shouldBlockDictationInput` so dictation cannot start mid-session |
-| `src/components/SettingsPage.tsx`   | one import and one `<ConversationModeSetting />` in the Hotkeys section        |
-| `electron-builder.json`             | ship `src/voice-agent/**` except the Python sources                            |
-| `src/locales/*/translation.json`    | the `conversation` strings (English everywhere, French written)                |
-| `package.json`, `package-lock.json` | `@ai-sdk/mcp` (exact version)                                                  |
-| `CHANGELOG.md`                      | one entry                                                                      |
+| File                                | Change                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- |
+| `main.js`                           | one `require(...).install({ windowManager, whisperManager, debugLogger, databaseManager })` |
+| `src/services/tools/index.ts`       | one import and one `registerConversationTools(registry, settings)` call                     |
+| `src/AppRouter.jsx`                 | two query-param branches for the session window and the companion overlay                   |
+| `src/helpers/windowManager.js`      | one line in `_shouldBlockDictationInput` so dictation cannot start mid-session              |
+| `src/components/SettingsPage.tsx`   | one import and one `<ConversationModeSetting />` in the Hotkeys section                     |
+| `electron-builder.json`             | ship `src/voice-agent/**` except the Python sources                                         |
+| `src/locales/*/translation.json`    | the `conversation` strings (English everywhere, French written)                             |
+| `package.json`, `package-lock.json` | `@ai-sdk/mcp` (exact version)                                                               |
+| `CHANGELOG.md`                      | one entry                                                                                   |
 
 ## Security model
 
