@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 MAX_TOOLS = 12
 # Same budget as runtime.js: the app, project names and the user's dictionary. faster-whisper
@@ -87,14 +89,43 @@ def tool_specs(tools: Any) -> list[dict[str, Any]]:
     return specs
 
 
+def is_private_host(hostname: str) -> bool:
+    """Plain HTTP is tolerated only inside the user's own network: the app's isPrivateHost rule."""
+    host = (hostname or "").lower().strip("[]")
+    if host in ("localhost", "0.0.0.0", "::1") or host.endswith((".local", ".ts.net")):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if ip.version == 4:
+        a, b = ip.packed[0], ip.packed[1]
+        return (
+            a in (127, 10)
+            or (a == 192 and b == 168)
+            or (a == 172 and 16 <= b <= 31)
+            or (a == 100 and 64 <= b <= 127)  # RFC 6598, used by Tailscale
+            or (a == 169 and b == 254)
+        )
+    return ip.is_link_local or host.startswith(("fc", "fd"))
+
+
+def is_reachable_remote(url: str) -> bool:
+    """HTTPS anywhere, plain HTTP only to a private host."""
+    parsed = urlparse(url)
+    if parsed.scheme == "https":
+        return True
+    return parsed.scheme == "http" and is_private_host(parsed.hostname or "")
+
+
 def parse_session_config(data: dict[str, Any], *, api_key: str | None = None) -> SessionConfig:
     llm = data.get("llm") if isinstance(data.get("llm"), dict) else {}
     base_url = str(llm.get("baseURL") or "").rstrip("/")
     local = bool(llm.get("local"))
     if local and not base_url.startswith(_LOOPBACK_PREFIXES):
         raise ValueError("a local model must be served on the loopback interface")
-    if not local and not base_url.startswith("https://") and not base_url.startswith(_LOOPBACK_PREFIXES):
-        raise ValueError("a remote model must be served over HTTPS")
+    if not local and not is_reachable_remote(base_url):
+        raise ValueError("a remote model must be served over HTTPS, or plain HTTP on a private network")
     kokoro = data.get("kokoro") if isinstance(data.get("kokoro"), dict) else {}
     model_path = str(kokoro.get("modelPath") or "")
     voices_path = str(kokoro.get("voicesPath") or "")

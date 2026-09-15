@@ -4198,12 +4198,16 @@
         "unsupportedProvider": "Le mode conversation fonctionne avec un modèle local ou un fournisseur personnalisé compatible OpenAI.",
         "invalidBaseUrl": "L'adresse du fournisseur personnalisé n'est pas valide.",
         "insecureBaseUrl": "Un fournisseur distant doit utiliser HTTPS.",
-        "startFailed": "La session vocale n'a pas pu démarrer : {{reason}}"
+        "startFailed": "La session vocale n'a pas pu démarrer : {{reason}}",
+        "missingApiKey": "Le modèle de l'assistant vocal n'a pas de clé API. Ajoute la clé du fournisseur dans les réglages, puis relance.",
+        "missingModel": "Choisis un modèle pour l'assistant vocal dans les réglages, puis relance.",
+        "missingBaseUrl": "Le point de terminaison de l'assistant vocal n'a pas d'adresse. Renseigne-la dans les réglages, puis relance."
       },
       "warnings": {
         "micSilent": "Aucun son depuis {{device}} depuis le début de la session. L'agent écoute peut-être un autre micro que celui dans lequel tu parles.",
         "micNotFound": "Le micro {{device}} est introuvable ; c'est {{heard}} qui est écouté. Choisis-le à nouveau dans les réglages, ou fixe inputDevice dans la configuration de la conversation."
-      }
+      },
+      "remoteModel": "Le modèle de l'assistant tourne chez {{provider}} : le texte de ce que tu dis y est envoyé. Ta voix et sa transcription restent sur cet ordinateur."
     },
     "companion": {
       "stop": "Terminer la conversation",

@@ -139,28 +139,37 @@ function routeSidecarMessage(message, relayed) {
  * settings, so the key arrives with the request; it reaches the sidecar only through its
  * environment, never over the WebSocket, and is never logged.
  */
+const { remoteBaseProblem } = require("../shared/llmPolicy");
+
+// Reasons a session window may give for not having a usable model (shared/llmEndpoint.mjs).
+const LLM_REQUEST_ERRORS = new Set([
+  "unsupported-provider",
+  "missing-api-key",
+  "missing-model",
+  "missing-base-url",
+  "invalid-base-url",
+  "insecure-base-url",
+]);
+
+/**
+ * The window only asks: the main process decides where a prompt and a key may go. HTTPS anywhere,
+ * plain HTTP only inside the user's own network (shared/llmPolicy.js).
+ */
 function resolveLlmEndpoint(request) {
   if (request?.mode === "local") return { kind: "local" };
-  if (request?.mode === "custom") {
-    let url;
-    try {
-      url = new URL(String(request.baseURL || ""));
-    } catch {
-      return { kind: "error", error: "invalid-base-url" };
-    }
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return { kind: "error", error: "invalid-base-url" };
-    }
-    const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
-    if (url.protocol === "http:" && !loopback) return { kind: "error", error: "insecure-base-url" };
-    return {
-      kind: "custom",
-      baseURL: url.href.replace(/\/$/, ""),
-      model: String(request.model || ""),
-      apiKey: typeof request.apiKey === "string" ? request.apiKey : "",
-    };
+  if (request?.mode === "invalid") {
+    const error = LLM_REQUEST_ERRORS.has(request.error) ? request.error : "unsupported-provider";
+    return { kind: "error", error };
   }
-  return { kind: "error", error: "unsupported-provider" };
+  if (request?.mode !== "remote") return { kind: "error", error: "unsupported-provider" };
+  const problem = remoteBaseProblem(request.baseURL);
+  if (problem) return { kind: "error", error: problem };
+  return {
+    kind: "remote",
+    baseURL: new URL(String(request.baseURL)).href.replace(/\/$/, ""),
+    model: String(request.model || ""),
+    apiKey: typeof request.apiKey === "string" ? request.apiKey : "",
+  };
 }
 
 // Development only: OW_CONVERSATION_WAV_INPUT plays recorded turns instead of the microphone.

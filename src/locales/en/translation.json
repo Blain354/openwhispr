@@ -4198,12 +4198,16 @@
         "unsupportedProvider": "Conversation mode works with a local model or a custom OpenAI-compatible provider.",
         "invalidBaseUrl": "The custom provider address is not valid.",
         "insecureBaseUrl": "A remote provider must use HTTPS.",
-        "startFailed": "The voice session could not start: {{reason}}"
+        "startFailed": "The voice session could not start: {{reason}}",
+        "missingApiKey": "The Voice Assistant model has no API key. Add the provider's key in Settings, then start again.",
+        "missingModel": "Pick a model for the Voice Assistant in Settings, then start again.",
+        "missingBaseUrl": "The Voice Assistant endpoint has no URL. Set it in Settings, then start again."
       },
       "warnings": {
         "micSilent": "No sound from {{device}} since this session started. OpenWhispr may be listening to another microphone than the one you speak into.",
         "micNotFound": "The microphone {{device}} was not found; listening to {{heard}} instead. Pick it again in Settings, or set inputDevice in the conversation configuration."
-      }
+      },
+      "remoteModel": "The assistant's model runs at {{provider}}: the text of what you say is sent there. Your voice and its transcription stay on this computer."
     },
     "companion": {
       "stop": "End the conversation",

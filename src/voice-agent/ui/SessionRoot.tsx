@@ -5,7 +5,11 @@ import { ChatMessages } from "../../components/chat/ChatMessages";
 import type { Message } from "../../components/chat/types";
 import { useChatPersistence } from "../../components/chat/useChatPersistence";
 import type { ToolRegistry } from "../../services/tools/ToolRegistry";
-import { getSettings, selectResolvedLLMConfig } from "../../stores/settingsStore";
+import {
+  getSettings,
+  initializeSettings,
+  selectResolvedLLMConfig,
+} from "../../stores/settingsStore";
 import {
   sessionTitle,
   shouldPersistVoiceSession,
@@ -18,6 +22,7 @@ import {
   voiceToolAllowlist,
   voiceToolSchemas,
 } from "./toolExecutor";
+import { sessionLlmRequest } from "../shared/llmEndpoint.mjs";
 import { microphoneLabel } from "../shared/microphone.mjs";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
@@ -65,6 +70,9 @@ const BEGIN_ERROR_KEYS: Record<string, string> = {
   "unsupported-provider": "conversation.session.errors.unsupportedProvider",
   "invalid-base-url": "conversation.session.errors.invalidBaseUrl",
   "insecure-base-url": "conversation.session.errors.insecureBaseUrl",
+  "missing-api-key": "conversation.session.errors.missingApiKey",
+  "missing-model": "conversation.session.errors.missingModel",
+  "missing-base-url": "conversation.session.errors.missingBaseUrl",
 };
 
 /** The microphone OpenWhispr itself listens to, by the label the sidecar can match. */
@@ -185,17 +193,14 @@ export default function SessionRoot() {
 
     const registry = createVoiceToolRegistry();
     registryRef.current = registry;
-    const llmConfig = selectResolvedLLMConfig(getSettings(), "dictationAgent");
-    const llm =
-      llmConfig.mode === "local"
-        ? { mode: "local" }
-        : {
-            mode: llmConfig.mode,
-            model: llmConfig.model,
-            baseURL: llmConfig.cloudBaseUrl || llmConfig.remoteUrl || "",
-            apiKey: llmConfig.customApiKey || "",
-          };
     void (async () => {
+      // A session window never runs the settings hook that loads the provider keys from the OS
+      // secure store: without this, a cloud model was reached with no key.
+      await initializeSettings().catch(() => {});
+      const llm = sessionLlmRequest(
+        selectResolvedLLMConfig(getSettings(), "dictationAgent"),
+        getSettings() as unknown as Record<string, unknown>
+      );
       // A server that is slow or down must not hold the session back: the tools it would add are
       // simply missing from this session.
       const [mcp, current] = await Promise.all([
@@ -211,7 +216,17 @@ export default function SessionRoot() {
         // always the one dictation uses.
         inputDevice: await resolveInputDevice(),
       });
-      if (result.success) return;
+      if (result.success) {
+        // What the user says leaves the machine as text: say so, once, at the start.
+        if (llm.mode === "remote") {
+          setNotice(
+            t("conversation.session.remoteModel", {
+              provider: (llm as { label?: string }).label || "?",
+            })
+          );
+        }
+        return;
+      }
       const code = result.errors?.[0];
       setNotice(
         code && BEGIN_ERROR_KEYS[code]

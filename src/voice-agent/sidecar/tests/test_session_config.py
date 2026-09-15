@@ -101,3 +101,17 @@ def test_an_older_app_that_sends_no_floor_still_gets_the_lower_default():
     )
     assert tuned.vad_min_volume == 0.25
     assert tuned.input_device == ""
+
+
+def test_plain_http_reaches_a_remote_model_only_inside_the_users_network():
+    for url in (
+        "http://192.168.0.125:8080/v1",
+        "http://100.101.1.2:11434/v1",
+        "http://serveur.tail1234.ts.net/v1",
+        "http://nas.local/v1",
+    ):
+        cfg = parse_session_config({"llm": {"baseURL": url, "model": "m"}, "kokoro": KOKORO})
+        assert cfg.llm_base_url == url and cfg.llm_local is False
+    for url in ("http://203.0.113.10/v1", "http://api.example.com/v1", "ftp://192.168.0.1/v1"):
+        with pytest.raises(ValueError):
+            parse_session_config({"llm": {"baseURL": url, "model": "m"}, "kokoro": KOKORO})

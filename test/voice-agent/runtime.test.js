@@ -50,40 +50,58 @@ test("transcripts and replies are relayed; tool calls go to the executor only", 
   assert.equal(routeSidecarMessage({ type: "error", data: {} }, RELAYED).kind, "relay");
 });
 
-test("a local model needs no secret; a custom provider keeps the key it was given", () => {
+test("a local model needs no secret; a remote endpoint keeps the key it was given", () => {
   assert.deepEqual(resolveLlmEndpoint({ mode: "local", apiKey: "ignored" }), { kind: "local" });
-  const custom = resolveLlmEndpoint({
-    mode: "custom",
+  const remote = resolveLlmEndpoint({
+    mode: "remote",
     baseURL: "https://api.example.com/v1/",
     model: "m",
     apiKey: "k1",
   });
-  assert.deepEqual(custom, {
-    kind: "custom",
+  assert.deepEqual(remote, {
+    kind: "remote",
     baseURL: "https://api.example.com/v1",
     model: "m",
     apiKey: "k1",
   });
 });
 
-test("plain http is only accepted on loopback, and unknown providers are refused", () => {
+test("plain http only reaches the user's own network, and unknown requests are refused", () => {
   assert.equal(
-    resolveLlmEndpoint({ mode: "custom", baseURL: "http://192.168.0.10:8080/v1" }).error,
+    resolveLlmEndpoint({ mode: "remote", baseURL: "http://203.0.113.10:8080/v1" }).error,
     "insecure-base-url"
   );
   assert.equal(
-    resolveLlmEndpoint({ mode: "custom", baseURL: "http://127.0.0.1:11434/v1" }).kind,
-    "custom"
+    resolveLlmEndpoint({ mode: "remote", baseURL: "http://192.168.0.125:8080/v1" }).kind,
+    "remote"
   );
   assert.equal(
-    resolveLlmEndpoint({ mode: "custom", baseURL: "file:///etc/passwd" }).error,
+    resolveLlmEndpoint({ mode: "remote", baseURL: "http://127.0.0.1:11434/v1" }).kind,
+    "remote"
+  );
+  assert.equal(
+    resolveLlmEndpoint({ mode: "remote", baseURL: "file:///etc/passwd" }).error,
     "invalid-base-url"
   );
   assert.equal(
-    resolveLlmEndpoint({ mode: "custom", baseURL: "not a url" }).error,
+    resolveLlmEndpoint({ mode: "remote", baseURL: "not a url" }).error,
     "invalid-base-url"
   );
   assert.equal(resolveLlmEndpoint({ mode: "openwhispr" }).error, "unsupported-provider");
+  // The shape the app never produces, which the session used to expect.
+  assert.equal(
+    resolveLlmEndpoint({ mode: "custom", baseURL: "https://api.example.com/v1" }).error,
+    "unsupported-provider"
+  );
+  // A window's reason is passed on only if it is one the session window can word.
+  assert.equal(
+    resolveLlmEndpoint({ mode: "invalid", error: "missing-api-key" }).error,
+    "missing-api-key"
+  );
+  assert.equal(
+    resolveLlmEndpoint({ mode: "invalid", error: "<script>" }).error,
+    "unsupported-provider"
+  );
 });
 
 test("the WAV harness is only reachable in development", () => {

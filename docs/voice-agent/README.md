@@ -215,3 +215,34 @@ numbers in `MEASUREMENTS.md`).
   into fragments that Whisper garbled (`MEASUREMENTS.md`).
 - Each session's system prompt ends with the date and time at its start, in the user's locale
   (`systemPromptFor` in `runtime.js`): a local model has no clock.
+
+## Which model a session uses
+
+A session uses the model of OpenWhispr's Voice Assistant (Settings → AI Models → Voice Assistant,
+scope `dictationAgent`), turned into a Chat Completions endpoint by `shared/llmEndpoint.mjs`:
+
+- **Local**: the local model server, with `conversationModel` from `config.json` (the 4B by
+  default), whichever local model the Voice Assistant has selected.
+- **Providers**: OpenAI, Groq, OpenRouter, Anthropic or Google, each at its OpenAI-compatible
+  endpoint with the key stored for that provider. **Custom** is reached at its URL, with `/v1`
+  appended when missing, and the Voice Assistant's own custom key, which may be empty.
+- **Self-hosted**: its URL, with `/v1` appended when missing.
+- OpenWhispr Cloud and enterprise providers are refused with a reason: they have no Chat
+  Completions endpoint a session can reach.
+
+The main process decides where the prompt and the key may go (`shared/llmPolicy.js`): HTTPS
+anywhere, plain HTTP only inside the user's network — loopback, private ranges, Tailscale,
+`.local` — the rule the app applies to these endpoints everywhere else. The sidecar checks it
+again.
+
+The session window loads the provider keys itself (`initializeSettings`). It is not a settings
+window: without that call every cloud model was reached with an empty key. When the model is
+remote, the session says so as it starts: the text of what the user says leaves the machine; the
+audio and its transcription do not.
+
+The session's tests build their input from the shape `selectResolvedLLMConfig` really returns. An
+earlier test used a `mode: "custom"` the app never produces, and passed while every cloud model was
+refused.
+
+Anthropic and Google are reached through their OpenAI-compatible endpoints rather than their own
+SDKs, as the rest of the app does. Neither has been run with a real key yet.
