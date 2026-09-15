@@ -22,6 +22,7 @@ class SessionConfig:
     stt_language: str | None
     hotwords: str
     barge_in: str
+    input_device: str
     whisper_model: str
     kokoro_model_path: str
     kokoro_voices_path: str
@@ -89,6 +90,7 @@ def parse_session_config(data: dict[str, Any], *, api_key: str | None = None) ->
         stt_language=stt_language_code(data.get("sttLanguage")),
         hotwords=str(data.get("hotwords") or "")[:300],
         barge_in="interrupt" if data.get("bargeIn") == "interrupt" else "mute",
+        input_device=str(data.get("inputDevice") or "")[:200],
         whisper_model=str(data.get("whisperModel") or "deepdml/faster-whisper-large-v3-turbo-ct2"),
         kokoro_model_path=model_path,
         kokoro_voices_path=voices_path,

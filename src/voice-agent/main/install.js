@@ -282,7 +282,11 @@ function install({ windowManager, whisperManager, debugLogger }) {
         if (!sessionController.isActive()) {
           return { success: false, displayText: tr("conversation.common.unavailable") };
         }
-        const result = await runtime.begin({ llm: payload.llm, tools: payload.tools });
+        const result = await runtime.begin({
+          llm: payload.llm,
+          tools: payload.tools,
+          inputDevice: typeof payload.inputDevice === "string" ? payload.inputDevice : "",
+        });
         if (result.success) {
           for (const text of pendingAnnouncements.splice(0)) runtime.send("say", { text });
         }

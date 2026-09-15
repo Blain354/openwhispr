@@ -4199,6 +4199,10 @@
         "invalidBaseUrl": "L'adresse du fournisseur personnalisé n'est pas valide.",
         "insecureBaseUrl": "Un fournisseur distant doit utiliser HTTPS.",
         "startFailed": "La session vocale n'a pas pu démarrer : {{reason}}"
+      },
+      "warnings": {
+        "micSilent": "Aucun son depuis {{device}} depuis le début de la session. L'agent écoute peut-être un autre micro que celui dans lequel tu parles.",
+        "micNotFound": "Le micro {{device}} est introuvable ; c'est {{heard}} qui est écouté. Choisis-le à nouveau dans les réglages, ou fixe inputDevice dans la configuration de la conversation."
       }
     },
     "companion": {

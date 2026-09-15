@@ -163,3 +163,25 @@ $env:OW_CONVERSATION_ENABLED = "1"
 $env:OW_CONVERSATION_WAV_INPUT = "C:\path\to\fixtures"
 npm run dev
 ```
+
+## Which microphone a session listens to
+
+The sidecar opens an input device by name, not PyAudio's default: on a machine where another
+application owns the default input — NVIDIA Broadcast, a virtual device, a headset that is off —
+the default opens without error and streams zeros, so the session looks alive and never answers
+while dictation keeps working.
+
+- The session window resolves the microphone OpenWhispr itself uses (`shared/microphone.mjs`:
+  the chosen device, else the system default under its own label, with Chromium's
+  `Default - ` / `Communications - ` prefix stripped) and sends the label with `session.begin`.
+- The sidecar matches that label against the input devices of PyAudio's default host API.
+  On Windows that is MME, which **truncates device names to 31 characters**, so
+  `Microphone (2- Stealth 600X Gen 3)` has to match `Microphone (2- Stealth 600X Gen`
+  (`audio_devices.py`). The `ready` message reports the device and how it was matched
+  (`exact`, `truncated`, `partial`, `default`, `unmatched`).
+- A label that matches nothing falls back to the system default **and says so**: the session
+  window shows which microphone it is listening to instead.
+- If the opened device delivers nothing above the noise floor for 12 s and the user was never
+  heard, the session says that too, once, naming the device.
+- `inputDevice` in `<userData>/voice-agent/config.json` (or `OW_CONVERSATION_INPUT_DEVICE`) forces
+  a device by name when that resolution is wrong.

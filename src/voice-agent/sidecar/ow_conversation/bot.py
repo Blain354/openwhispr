@@ -13,6 +13,7 @@ import asyncio
 import os
 import time
 from collections.abc import AsyncGenerator, Callable
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -62,7 +63,8 @@ from pipecat.utils.types import assert_given
 from pipecat.workers.runner import WorkerRunner
 
 from .link import Link
-from .metrics import LevelMeter, latency_payload
+from .audio_devices import DeviceChoice, resolve_input_device
+from .metrics import LevelMeter, latency_payload, rms_level
 from .mute import SessionMuteStrategy
 from .session_config import SessionConfig
 from .text_aggregator import FirstClauseTextAggregator
@@ -73,6 +75,9 @@ NO_SPEECH_PROB = 0.6
 # Silence after the VAD stop before the turn ends. 0.6 s measured ~320 ms of turn-end latency.
 TURN_STOP_TIMEOUT_SECS = 0.4
 TOOL_TIMEOUT_SECS = 200.0
+# A microphone that streams zeros: reported once, after this long without a sound above the floor.
+SILENT_MIC_SECS = 12.0
+SILENT_MIC_LEVEL = 0.01
 
 # (input processor, output processor, close callback)
 TransportFactory = Callable[[], tuple[FrameProcessor, FrameProcessor, Callable[[], None]]]
@@ -199,6 +204,7 @@ class BridgeObserver(BaseObserver):
         output_processor: FrameProcessor,
         user_aggregator: FrameProcessor,
         llm: FrameProcessor,
+        device_name: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -208,6 +214,11 @@ class BridgeObserver(BaseObserver):
         self._user_aggregator = user_aggregator
         self._llm = llm
         self._level = LevelMeter()
+        self._device = device_name
+        self._peak = 0.0
+        self._audio_since: float | None = None
+        self._silence_reported = False
+        self._heard_user = False
         self._reply: list[str] = []
 
     def take_reply(self) -> str:
@@ -215,13 +226,32 @@ class BridgeObserver(BaseObserver):
         self._reply = []
         return text
 
+    def _watch_for_silence(self, pcm16: bytes, now: float) -> None:
+        """A microphone that delivers zeros is the one failure a user cannot see.
+
+        Opening the wrong input device succeeds and then streams silence, so the session looks
+        alive and never answers. Reported once, and only until the user is heard.
+        """
+        if self._silence_reported or self._heard_user:
+            return
+        if self._audio_since is None:
+            self._audio_since = now
+        self._peak = max(self._peak, rms_level(pcm16))
+        if now - self._audio_since < SILENT_MIC_SECS:
+            return
+        self._silence_reported = True
+        if self._peak < SILENT_MIC_LEVEL:
+            self._emit("warning", {"code": "micSilent", "device": self._device})
+
     async def on_push_frame(self, data: FramePushed) -> None:
         frame, source = data.frame, data.source
         if isinstance(frame, InputAudioRawFrame):
             if source is self._input:
-                level = self._level.update(frame.audio, time.monotonic())
+                now = time.monotonic()
+                level = self._level.update(frame.audio, now)
                 if level is not None:
                     self._emit("level", {"value": level})
+                self._watch_for_silence(frame.audio, now)
             return
         if data.direction != FrameDirection.DOWNSTREAM:
             return
@@ -232,6 +262,7 @@ class BridgeObserver(BaseObserver):
                 self._emit("state", {"event": "bot.stopped"})
         elif source is self._user_aggregator:
             if isinstance(frame, UserStartedSpeakingFrame):
+                self._heard_user = True
                 self._emit("state", {"event": "user.started"})
             elif isinstance(frame, UserStoppedSpeakingFrame):
                 self._emit("state", {"event": "user.stopped"})
@@ -364,9 +395,26 @@ async def warm_llm(cfg: SessionConfig) -> float:
     return time.perf_counter() - started
 
 
-def _local_audio_transport() -> tuple[FrameProcessor, FrameProcessor, Callable[[], None]]:
+def resolve_microphone(wanted: str) -> DeviceChoice:
+    """Which input device the session will open, decided before the transport exists."""
+    import pyaudio
+
+    py_audio = pyaudio.PyAudio()
+    try:
+        return resolve_input_device(py_audio, wanted)
+    finally:
+        py_audio.terminate()
+
+
+def _local_audio_transport(
+    input_device_index: int | None = None,
+) -> tuple[FrameProcessor, FrameProcessor, Callable[[], None]]:
     transport = LocalAudioTransport(
-        LocalAudioTransportParams(audio_in_enabled=True, audio_out_enabled=True)
+        LocalAudioTransportParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            input_device_index=input_device_index,
+        )
     )
     # pipecat never terminates PyAudio (local/audio.py:218).
     return transport.input(), transport.output(), transport._pyaudio.terminate
@@ -392,9 +440,16 @@ class VoiceBot:
         self.tools = ToolBridge(link.send)
         self.mute = SessionMuteStrategy(mute_while_bot_speaks=cfg.barge_in != "interrupt")
 
-        input_processor, output_processor, self._close_transport = (
-            transport_factory or _local_audio_transport
-        )()
+        if transport_factory is None:
+            self.input_device = resolve_microphone(cfg.input_device)
+            logger.info(
+                f"Microphone: {self.input_device.name!r} ({self.input_device.status})"
+                f" for requested {cfg.input_device!r}"
+            )
+            transport_factory = partial(_local_audio_transport, self.input_device.index)
+        else:
+            self.input_device = DeviceChoice(None, "", "harness")
+        input_processor, output_processor, self._close_transport = transport_factory()
 
         llm.register_function(
             None, self._on_tool_call, cancel_on_interruption=False, timeout_secs=TOOL_TIMEOUT_SECS
@@ -432,6 +487,7 @@ class VoiceBot:
             output_processor=output_processor,
             user_aggregator=user_aggregator,
             llm=llm,
+            device_name=self.input_device.name,
         )
         latency = UserBotLatencyObserver()
 
@@ -458,7 +514,14 @@ class VoiceBot:
         @self.worker.event_handler("on_pipeline_started")
         async def _on_started(_worker, _frame):
             self._started = True
-            self._emitter.emit("ready", self._ready_data)
+            self._emitter.emit(
+                "ready",
+                {
+                    **self._ready_data,
+                    "inputDevice": self.input_device.name,
+                    "inputDeviceStatus": self.input_device.status,
+                },
+            )
 
         @self.worker.event_handler("on_pipeline_error")
         async def _on_error(_worker, frame: ErrorFrame):

@@ -193,7 +193,7 @@ function createConversationRuntime({
     }
   }
 
-  async function begin({ llm, tools }) {
+  async function begin({ llm, tools, inputDevice }) {
     if (running) return { success: false, displayText: "A voice session is already running." };
     const proto = await loadProtocol();
     const { selectVoiceTools } = await import("../shared/voiceTools.mjs");
@@ -265,11 +265,24 @@ function createConversationRuntime({
           sttLanguage: config.sttLanguage,
           hotwords: hotwordsFor(config, listProjectDirs),
           bargeIn: config.bargeIn,
+          // The microphone the app itself is using: the sidecar's own default is PyAudio's,
+          // which is not always the one the user picked in OpenWhispr.
+          inputDevice: config.inputDevice || inputDevice || "",
           whisperModel: WHISPER_MODEL,
           kokoro: { ...kokoroPaths(), voice: "ff_siwis", language: "fr-fr" },
         })
       );
       const readyMessage = await ready;
+      if (readyMessage.data?.inputDeviceStatus === "unmatched") {
+        conversationWindows.broadcast({
+          type: "warning",
+          data: {
+            code: "micNotFound",
+            device: config.inputDevice || inputDevice || "",
+            heard: readyMessage.data?.inputDevice || "",
+          },
+        });
+      }
       await sessionController.dispatch("sidecar.ready");
       const vramMiB = await vram.readVramMiB();
       debugLogger?.info("Voice session ready", { ...readyMessage.data, vramMiB }, "conversation");

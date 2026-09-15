@@ -12,6 +12,9 @@ const DEFAULTS = Object.freeze({
   conversationModel: "qwen3.5-4b-q4_k_m",
   sttLanguage: "auto",
   bargeIn: "mute",
+  // Empty: the microphone the app resolved for dictation. A label here wins, for a machine
+  // where that resolution is wrong.
+  inputDevice: "",
   confirmDelegation: true,
   // Background workers: project folders (a folder, or "parent/*" for its sub-folders), the notes
   // vault they must never touch, the Claude Code executable (empty: ~/.local/bin/claude) and a
@@ -53,6 +56,7 @@ function sanitize(raw) {
     out.sttLanguage = raw.sttLanguage;
   }
   if (raw.bargeIn === "mute" || raw.bargeIn === "voice") out.bargeIn = raw.bargeIn;
+  if (typeof raw.inputDevice === "string") out.inputDevice = raw.inputDevice.trim().slice(0, 200);
   if (typeof raw.confirmDelegation === "boolean") out.confirmDelegation = raw.confirmDelegation;
   if (Array.isArray(raw.workerProjectRoots)) {
     out.workerProjectRoots = raw.workerProjectRoots
@@ -90,6 +94,9 @@ function loadConfig(userDataDir, env = process.env) {
     }).workerProjectRoots;
   }
   if (env.OW_CONVERSATION_VAULT_ROOT) config.vaultRoot = env.OW_CONVERSATION_VAULT_ROOT.trim();
+  if (env.OW_CONVERSATION_INPUT_DEVICE) {
+    config.inputDevice = env.OW_CONVERSATION_INPUT_DEVICE.trim().slice(0, 200);
+  }
   return config;
 }
 

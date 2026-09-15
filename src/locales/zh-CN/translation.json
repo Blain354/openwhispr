@@ -4199,6 +4199,10 @@
         "invalidBaseUrl": "The custom provider address is not valid.",
         "insecureBaseUrl": "A remote provider must use HTTPS.",
         "startFailed": "The voice session could not start: {{reason}}"
+      },
+      "warnings": {
+        "micSilent": "No sound from {{device}} since this session started. OpenWhispr may be listening to another microphone than the one you speak into.",
+        "micNotFound": "The microphone {{device}} was not found; listening to {{heard}} instead. Pick it again in Settings, or set inputDevice in the conversation configuration."
       }
     },
     "companion": {

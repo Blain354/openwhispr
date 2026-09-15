@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { ChatMessages } from "../../components/chat/ChatMessages";
 import type { Message } from "../../components/chat/types";
@@ -17,6 +18,7 @@ import {
   voiceToolAllowlist,
   voiceToolSchemas,
 } from "./toolExecutor";
+import { microphoneLabel } from "../shared/microphone.mjs";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
 interface PublicConfig {
@@ -64,6 +66,32 @@ const BEGIN_ERROR_KEYS: Record<string, string> = {
   "invalid-base-url": "conversation.session.errors.invalidBaseUrl",
   "insecure-base-url": "conversation.session.errors.insecureBaseUrl",
 };
+
+/** The microphone OpenWhispr itself listens to, by the label the sidecar can match. */
+async function resolveInputDevice(): Promise<string> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return microphoneLabel(getSettings(), devices);
+  } catch {
+    // No permission, no device list: the sidecar falls back to the system default.
+    return "";
+  }
+}
+
+/** A warning carries a code, not a sentence: the session window owns the wording. */
+function warningText(data: Record<string, unknown> | undefined, t: TFunction): string {
+  const code = String(data?.code ?? "");
+  if (code === "micSilent") {
+    return t("conversation.session.warnings.micSilent", { device: String(data?.device || "?") });
+  }
+  if (code === "micNotFound") {
+    return t("conversation.session.warnings.micNotFound", {
+      device: String(data?.device || "?"),
+      heard: String(data?.heard || "?"),
+    });
+  }
+  return String(data?.message ?? "");
+}
 
 export default function SessionRoot() {
   const { t, i18n } = useTranslation();
@@ -179,6 +207,9 @@ export default function SessionRoot() {
       const result = await invokeConversation("session.begin", {
         llm,
         tools: voiceToolSchemas(registry, allowlistRef.current),
+        // The sidecar opens a device by name; without this it opens the system's, which is not
+        // always the one dictation uses.
+        inputDevice: await resolveInputDevice(),
       });
       if (result.success) return;
       const code = result.errors?.[0];
@@ -293,11 +324,11 @@ export default function SessionRoot() {
             : [task, ...prev].slice(0, 10)
         );
       }),
-      on("warning", (message) => setNotice(String(message.data?.message ?? ""))),
+      on("warning", (message) => setNotice(warningText(message.data, t))),
       on("error", (message) => setNotice(String(message.data?.message ?? ""))),
     ];
     return () => offs.forEach((off) => off());
-  }, [persist]);
+  }, [persist, t]);
 
   const saveMcpToken = async () => {
     const result = await invokeConversation<{ servers: string[] }>("mcp.setToken", {
