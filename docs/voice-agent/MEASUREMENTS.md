@@ -128,3 +128,35 @@ of the day. Turn latency 2,210 ms (tool round trip included).
 Before that run, the same question made the model call upstream's `search_notes` (OpenWhispr's own
 notes, which are empty here) instead of the vault. Two tools for the same words is a choice a 4B
 model gets wrong, so the app's note tools are now left out of a session when a vault is configured.
+
+## After the rebase onto v1.10.1 (2026-09-14, night)
+
+The same harness on the branch rebased onto `v1.10.1`, same machine, installed app closed. Three
+runs, one per fixture set.
+
+**Five French turns.** Session `listening` 26.2 s after the hotkey on the first run of the night —
+`loadMs` alone was 16.7 s with a cold file cache; the next two runs loaded in 6.0 s for a 10 s
+startup, as before. VRAM 7,177 MiB before, **8,504 MiB during**, 7,231 MiB after.
+
+| Turn | Heard                                           | Total | STT | Turn end | LLM | Sentence | TTS |
+| ---- | ----------------------------------------------- | ----- | --- | -------- | --- | -------- | --- |
+| 1    | « Bonjour Peux-tu te présenter en une phrase? » | 2,133 | 296 | 100      | 351 | 148      | 830 |
+| 2    | « Quelle est la capitale de l'Australie ? »     | 2,125 | 283 | 100      | 111 | 144      | 928 |
+| 3    | « Donne-moi une astuce pour mieux dormir. »     | 1,650 | 289 | 102      | 110 | 116      | 630 |
+| 4    | « Combien font 17 fois 3 ? »                    | 1,195 | 242 | 157      | 109 | 100      | 387 |
+| 5    | « Merci C'est tout pour aujourd'hui. »          | 1,091 | 204 | 204      | 113 | 71       | 299 |
+
+Median **1,650 ms**, range 1,091–2,133 ms; `fr` on 5/5 turns with probability ≥ 0.998; no error or
+warning event. Dictation stayed blocked, a request for the 9B was refused while the session held
+the 4B on port 8221, the second hotkey press ended the session, and no sidecar process was left.
+
+**Delegation.** Spoken acknowledgement at **2,486 ms**; the task ran 68 s, succeeded, cost $0.318,
+and its end was announced **754 ms** after it finished. The simple question asked while the worker
+ran came back in 1,349 ms. The worker signed in through the standalone CLI, as it must.
+
+**Vault and MCP.** `vault_search("OpenWhispr")` returned 7 notes and the model summarised the day
+correctly, but the turn took **6,499 ms** — against 2,210 ms in the first run, for a longer answer
+over a vault that has grown by a day of notes. The walk is the suspect and is worth a measurement
+of its own before the next release. The guard checks all held: declared tools listed, an undeclared
+one hidden and refused, a read without a dialog, a write only after its confirmation, and
+`60_Sante/…`, `.obsidian/…` and `../../Windows/win.ini` all refused.
