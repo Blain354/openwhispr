@@ -25,7 +25,7 @@ The branch is cut from a release tag, never from `main`:
 
 ```bash
 git fetch upstream --tags
-git switch -c feat/voice-agent v1.10.0
+git switch -c feat/voice-agent v1.10.1
 ```
 
 ## Upstream files touched by the branch
@@ -54,7 +54,7 @@ all. The settings page reads and writes it through the conversation bridge.
 git fetch upstream --tags
 git switch feat/voice-agent
 OLD_SHA=$(git rev-parse HEAD)                     # lease value for the push below
-git rebase --onto vNEW vOLD feat/voice-agent      # e.g. --onto v1.10.1 v1.10.0
+git rebase --onto vNEW vOLD feat/voice-agent      # e.g. --onto v1.10.2 v1.10.1
 # resolve conflicts with the recipes above, then:
 npm ci
 npm run quality-check && npm run lint && npm test && npm run i18n:check
@@ -81,13 +81,13 @@ $env:OPENWHISPR_CACHE_ROOT = Join-Path $env:TEMP "openwhispr-test-cache"
 npm test
 ```
 
-At `v1.10.0`, `test/helpers/localReasoningBridgeChain.test.js` stubs Electron's home directory but
+At `v1.10.1`, `test/helpers/localReasoningBridgeChain.test.js` stubs Electron's home directory but
 `src/helpers/modelDirUtils.js` prefers `USERPROFILE` on Windows, so the test writes a 1 MB fake
 model over the first registry model (`Qwen_Qwen3.5-9B-Q4_K_M.gguf`) in the real
 `%USERPROFILE%\.cache\openwhispr\models`. Upstream CI runs on Linux and never sees it. With
 `OPENWHISPR_CACHE_ROOT` set, the cache resolves into the temporary folder instead.
 
-A clean Windows checkout of `v1.10.0` also has pre-existing test failures (198 of 3,809 on the
+A clean Windows checkout of `v1.10.1` also has pre-existing test failures (200 of 4,119 on the
 reference machine, mostly Linux/macOS-specific); compare against that baseline rather than zero.
 
 ## Python sidecar environment
