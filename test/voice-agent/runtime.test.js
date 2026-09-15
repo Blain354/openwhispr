@@ -6,6 +6,8 @@ const {
   resolveLlmEndpoint,
   harnessArgs,
   hotwordsFor,
+  SYSTEM_PROMPT,
+  systemPromptFor,
 } = require("../../src/voice-agent/main/runtime");
 
 const RELAYED = [
@@ -122,4 +124,11 @@ test("without a dictionary the hotwords are what they were", () => {
   const listDirs = () => [];
   assert.equal(hotwordsFor({}, listDirs), "OpenWhispr");
   assert.equal(hotwordsFor({}, listDirs, []), "OpenWhispr");
+});
+
+test("each session tells the model today's date and time, after the fixed rules", () => {
+  const prompt = systemPromptFor(new Date(2026, 8, 15, 10, 52));
+  assert.ok(prompt.startsWith(SYSTEM_PROMPT));
+  assert.match(prompt, /15 septembre 2026/);
+  assert.match(prompt, /10 h 52/);
 });

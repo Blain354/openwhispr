@@ -75,8 +75,13 @@ from .turn_completion import NEVER_NUDGE_SECS, system_prompt_for
 
 CONFIRM_PHRASE = "Confirme à l'écran."
 NO_SPEECH_PROB = 0.6
-# Silence after the VAD stop before the turn ends. 0.6 s measured ~320 ms of turn-end latency.
-TURN_STOP_TIMEOUT_SECS = 0.4
+# Silence that closes a speech segment. Pipecat transcribes each segment on its own: at 0.2 s a
+# pause to think cut a sentence into pieces Whisper garbled (« Donne-moi une | Das tschüss |
+# Pour mieux dormir »), while the same audio in one block came out right 4 times out of 4.
+# 0.8 s keeps a thinking pause inside the segment.
+VAD_STOP_SECS = 0.8
+# Further silence before the model is asked whether the turn is finished.
+TURN_STOP_TIMEOUT_SECS = 0.2
 TOOL_TIMEOUT_SECS = 200.0
 # A microphone that streams zeros: reported once, after this long without a sound above the floor.
 SILENT_MIC_SECS = 12.0
@@ -495,7 +500,7 @@ class VoiceBot:
             context,
             user_params=LLMUserAggregatorParams(
                 vad_analyzer=SileroVADAnalyzer(
-                    params=VADParams(stop_secs=0.2, min_volume=cfg.vad_min_volume)
+                    params=VADParams(stop_secs=VAD_STOP_SECS, min_volume=cfg.vad_min_volume)
                 ),
                 user_turn_strategies=turn_strategies(cfg),
                 user_mute_strategies=[self.mute, FunctionCallUserMuteStrategy()],

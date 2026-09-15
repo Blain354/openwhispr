@@ -199,3 +199,35 @@ in the history are local `turbo`). On eight recorded utterances:
 - The recordings are synthetic speech. They cannot show what a real, hesitant voice loses when a
   pause splits a sentence into separately transcribed pieces — which the turn-taking change
   removes.
+
+## Thinking pauses and speech segments (2026-09-15)
+
+Reported after a session with the turn-completion change: still impatient, and the transcription
+still worse than dictation.
+
+Pipecat's segmented STT transcribes each stretch of speech the VAD closes, on its own, and the VAD
+closed a segment after 0.2 s of silence. Four recorded sentences with two 0.45 s thinking pauses
+inserted in each, transcribed in one block (as dictation does) and segment by segment (as the
+session did):
+
+- « Bonjour, peux-tu te présenter en une phrase ? » — one block: right. Segments: « Bonjour,
+  peux-tu te… », « présenté en une », « Phrase ».
+- « Donne-moi une astuce pour mieux dormir. » — one block: right. Segments: « Donne-moi une »,
+  « Batschus, blain-infra », « Pour mieux dormir ».
+- « Résume en tâche de fond les commits d'aujourd'hui dans le projet blain-infra. » — one block:
+  right. Segments: « Résume en tâches de fonds », « Commits d'aujourd'hui dans », « Le projet
+  blain-infra ».
+- « Cherche dans mes notes ce que j'ai écrit aujourd'hui sur OpenWhispr, puis résume-le en une
+  phrase. » — one block: right. Segments: « Cherche dans mes notes ce que j'ai », « et écrit
+  aujourd'hui sur OpenWhispr », « Puis résume-le en une phrase ».
+
+Findings:
+
+- Short fragments hallucinate with or without hotwords (« Das tschüss », « vidéo »). On longer
+  ones the hotwords do their job and restore « blain-infra » and « OpenWhispr ».
+- The model then judged turn completion on those fragments. On clean fragments the 4B stayed silent
+  7 times out of 14 without a final period and 11 out of 14 with one: the 23/28 measured above was
+  on whole, correctly transcribed sentences, and was optimistic for real speech.
+- The VAD now closes a segment after 0.8 s of silence, then waits 0.2 s before asking the model, so
+  a thinking pause stays inside the segment. Cost: about 0.4 s more before each reply (0.6 s of
+  silence becomes 1.0 s).

@@ -207,3 +207,11 @@ numbers in `MEASUREMENTS.md`).
 - `waitForCompleteTurns: false` in `config.json` restores the fixed silence.
 - The user's custom dictionary is passed to Whisper as hotwords, after the app and project names,
   within 1,200 characters (faster-whisper keeps the first 223 tokens).
+
+## Speech segments and the date
+
+- Pipecat transcribes each speech segment on its own. The VAD closes a segment after 0.8 s of
+  silence (`VAD_STOP_SECS` in `bot.py`), not 0.2 s: at 0.2 s a thinking pause split a sentence
+  into fragments that Whisper garbled (`MEASUREMENTS.md`).
+- Each session's system prompt ends with the date and time at its start, in the user's locale
+  (`systemPromptFor` in `runtime.js`): a local model has no clock.

@@ -39,6 +39,17 @@ const SYSTEM_PROMPT = [
 const HOTWORDS_MAX_CHARS = 1200;
 
 /**
+ * The prompt of one session: the fixed rules, then what the model cannot know by itself.
+ * A local model has no clock; without this it could not answer « quel jour sommes-nous ».
+ */
+function systemPromptFor(now = new Date()) {
+  const today = new Intl.DateTimeFormat("fr-CA", { dateStyle: "full", timeStyle: "short" }).format(
+    now
+  );
+  return `${SYSTEM_PROMPT} Nous sommes le ${today}, heure locale de l'utilisateur, au début de cette session.`;
+}
+
+/**
  * Proper nouns Whisper should hear correctly: the app, the configured project folders, then the
  * user's own dictionary — the words dictation is already biased with. Whisper transcribed
  * "blain-infra" as "Blin Infra" without them. The string is bounded and never cuts a word.
@@ -297,7 +308,7 @@ function createConversationRuntime({
         proto.encodeMessage("session.config", {
           llm: llmConfig,
           tools: selectVoiceTools(tools),
-          systemPrompt: SYSTEM_PROMPT,
+          systemPrompt: systemPromptFor(),
           sttLanguage: config.sttLanguage,
           hotwords: hotwordsFor(
             config,
@@ -393,5 +404,6 @@ module.exports = {
   harnessArgs,
   hotwordsFor,
   SYSTEM_PROMPT,
+  systemPromptFor,
   WHISPER_MODEL,
 };
