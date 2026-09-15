@@ -23,6 +23,7 @@ class SessionConfig:
     hotwords: str
     barge_in: str
     input_device: str
+    vad_min_volume: float
     whisper_model: str
     kokoro_model_path: str
     kokoro_voices_path: str
@@ -36,6 +37,21 @@ def stt_language_code(value: Any) -> str | None:
     if text in ("", "auto"):
         return None
     return text.split("-")[0]
+
+
+# Pipecat's default is 0.6 (about -50 LUFS): a quiet headset never reaches it.
+DEFAULT_VAD_MIN_VOLUME = 0.4
+
+
+def vad_min_volume(value: Any) -> float:
+    """Loudness floor for speech, 0..1 on Pipecat's -110..-10 LUFS scale, clamped to a sane band."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_VAD_MIN_VOLUME
+    if number != number:  # NaN
+        return DEFAULT_VAD_MIN_VOLUME
+    return min(0.9, max(0.1, number))
 
 
 def tool_specs(tools: Any) -> list[dict[str, Any]]:
@@ -91,6 +107,7 @@ def parse_session_config(data: dict[str, Any], *, api_key: str | None = None) ->
         hotwords=str(data.get("hotwords") or "")[:300],
         barge_in="interrupt" if data.get("bargeIn") == "interrupt" else "mute",
         input_device=str(data.get("inputDevice") or "")[:200],
+        vad_min_volume=vad_min_volume(data.get("vadMinVolume")),
         whisper_model=str(data.get("whisperModel") or "deepdml/faster-whisper-large-v3-turbo-ct2"),
         kokoro_model_path=model_path,
         kokoro_voices_path=voices_path,

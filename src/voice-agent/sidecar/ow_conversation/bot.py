@@ -458,7 +458,9 @@ class VoiceBot:
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
             context,
             user_params=LLMUserAggregatorParams(
-                vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.2)),
+                vad_analyzer=SileroVADAnalyzer(
+                    params=VADParams(stop_secs=0.2, min_volume=cfg.vad_min_volume)
+                ),
                 user_turn_strategies=UserTurnStrategies(
                     start=[VADUserTurnStartStrategy(), TranscriptionUserTurnStartStrategy()],
                     # Explicit stop strategy: the default loads Smart Turn v3 (English-tuned).

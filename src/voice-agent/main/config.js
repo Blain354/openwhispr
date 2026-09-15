@@ -15,6 +15,8 @@ const DEFAULTS = Object.freeze({
   // Empty: the microphone the app resolved for dictation. A label here wins, for a machine
   // where that resolution is wrong.
   inputDevice: "",
+  // Loudness floor for speech detection (0..1). Pipecat's 0.6 ignores a quiet headset.
+  vadMinVolume: 0.4,
   confirmDelegation: true,
   // Background workers: project folders (a folder, or "parent/*" for its sub-folders), the notes
   // vault they must never touch, the Claude Code executable (empty: ~/.local/bin/claude) and a
@@ -57,6 +59,9 @@ function sanitize(raw) {
   }
   if (raw.bargeIn === "mute" || raw.bargeIn === "voice") out.bargeIn = raw.bargeIn;
   if (typeof raw.inputDevice === "string") out.inputDevice = raw.inputDevice.trim().slice(0, 200);
+  if (typeof raw.vadMinVolume === "number" && Number.isFinite(raw.vadMinVolume)) {
+    out.vadMinVolume = Math.min(0.9, Math.max(0.1, raw.vadMinVolume));
+  }
   if (typeof raw.confirmDelegation === "boolean") out.confirmDelegation = raw.confirmDelegation;
   if (Array.isArray(raw.workerProjectRoots)) {
     out.workerProjectRoots = raw.workerProjectRoots

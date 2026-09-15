@@ -268,6 +268,7 @@ function createConversationRuntime({
           // The microphone the app itself is using: the sidecar's own default is PyAudio's,
           // which is not always the one the user picked in OpenWhispr.
           inputDevice: config.inputDevice || inputDevice || "",
+          vadMinVolume: config.vadMinVolume,
           whisperModel: WHISPER_MODEL,
           kokoro: { ...kokoroPaths(), voice: "ff_siwis", language: "fr-fr" },
         })

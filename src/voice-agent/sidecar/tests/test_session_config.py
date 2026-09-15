@@ -1,10 +1,12 @@
 import pytest
 
 from ow_conversation.session_config import (
+    DEFAULT_VAD_MIN_VOLUME,
     MAX_TOOLS,
     parse_session_config,
     stt_language_code,
     tool_specs,
+    vad_min_volume,
 )
 
 KOKORO = {"modelPath": "C:/k/kokoro-v1.0.onnx", "voicesPath": "C:/k/voices-v1.0.bin"}
@@ -77,3 +79,24 @@ def test_hotwords_are_kept_bounded():
     )
     assert cfg.hotwords.startswith("OpenWhispr, blain-infra")
     assert len(cfg.hotwords) == 300
+
+
+def test_the_speech_loudness_floor_defaults_below_pipecats_and_stays_in_band():
+    # Pipecat's own 0.6 (about -50 LUFS) is never reached by a quiet headset.
+    assert DEFAULT_VAD_MIN_VOLUME < 0.6
+    assert vad_min_volume(None) == DEFAULT_VAD_MIN_VOLUME
+    assert vad_min_volume("loud") == DEFAULT_VAD_MIN_VOLUME
+    assert vad_min_volume(float("nan")) == DEFAULT_VAD_MIN_VOLUME
+    assert vad_min_volume(0.3) == 0.3
+    assert vad_min_volume(0.0) == 0.1
+    assert vad_min_volume(5) == 0.9
+
+
+def test_an_older_app_that_sends_no_floor_still_gets_the_lower_default():
+    cfg = parse_session_config({"llm": {"baseURL": "http://127.0.0.1:8222/v1", "local": True}, "kokoro": KOKORO})
+    assert cfg.vad_min_volume == DEFAULT_VAD_MIN_VOLUME
+    tuned = parse_session_config(
+        {"llm": {"baseURL": "http://127.0.0.1:8222/v1", "local": True}, "kokoro": KOKORO, "vadMinVolume": 0.25}
+    )
+    assert tuned.vad_min_volume == 0.25
+    assert tuned.input_device == ""

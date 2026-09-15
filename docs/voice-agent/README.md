@@ -185,3 +185,8 @@ while dictation keeps working.
   heard, the session says that too, once, naming the device.
 - `inputDevice` in `<userData>/voice-agent/config.json` (or `OW_CONVERSATION_INPUT_DEVICE`) forces
   a device by name when that resolution is wrong.
+- Speech is only detected when Silero is confident **and** the audio is loud enough. Pipecat's
+  loudness floor is 0.6 on a -110..-10 LUFS scale, about -50 LUFS; a headset measured at rms 28 /
+  peak 412 while counting aloud sits near 0.49 and was never detected, while push-to-talk
+  dictation (no VAD, Chromium's automatic gain) worked. The floor defaults to **0.4** here, and
+  `vadMinVolume` in `config.json` tunes it (clamped to 0.1–0.9).
