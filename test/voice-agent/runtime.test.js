@@ -157,3 +157,112 @@ test("a key saved under the wrong provider is a reason the session window can wo
     "key-mismatch"
   );
 });
+
+const os = require("os");
+const { createConversationRuntime, mcpToolNames } = require("../../src/voice-agent/main/runtime");
+const { DEFAULTS } = require("../../src/voice-agent/main/config");
+
+/** A whole begin() with a fake WebSocket and sidecar: returns the session.config it sent. */
+async function startFakeSession({ llm, tools, config = {}, voice }) {
+  const { encodeMessage } = await import("../../src/voice-agent/shared/protocol.mjs");
+  const sent = [];
+  const launches = [];
+  let deliver = null;
+  const runtime = createConversationRuntime({
+    userDataDir: os.tmpdir(),
+    getConfig: () => ({ ...DEFAULTS, ...config }),
+    sessionController: { dispatch: async () => {} },
+    conversationWindows: { broadcast() {}, sendToSession() {} },
+    getVram: () => ({
+      releaseWhisper: async () => {},
+      startSessionModel: async () => ({ baseURL: "http://127.0.0.1:8222/v1" }),
+      lockModel() {},
+      unlockModel() {},
+      restoreWhisper() {},
+      readVramMiB: async () => 0,
+    }),
+    wsServerFactory: ({ onMessage }) => {
+      deliver = onMessage;
+      return {
+        start: async () => ({ port: 8241, token: "t" }),
+        send: (raw) => {
+          const message = JSON.parse(raw);
+          sent.push(message);
+          if (message.type === "session.config") {
+            setImmediate(() => deliver(encodeMessage("ready", {})));
+          }
+          return true;
+        },
+        stop: async () => {},
+      };
+    },
+    sidecarManagerFactory: () => ({
+      isAvailable: () => true,
+      start: async (launch) => {
+        launches.push(launch);
+        setImmediate(() => deliver(encodeMessage("hello", { protocol: 1 })));
+      },
+      stop: async () => {},
+      killSync() {},
+    }),
+  });
+  const result = await runtime.begin({ llm, tools, inputDevice: "", voice });
+  const sessionConfig = sent.find((message) => message.type === "session.config")?.data;
+  return { runtime, result, sessionConfig, launch: launches[0] };
+}
+
+const TOOL_NAMES = [
+  "open_app",
+  "run_powershell",
+  "vault_read",
+  "delegate_task",
+  "mcp_itsaplan__list_projects",
+  "copy_to_clipboard",
+];
+const toolSchemas = TOOL_NAMES.map((name) => ({
+  name,
+  description: name,
+  parameters: { type: "object", properties: {} },
+}));
+
+test("an online model gets no tool that reads the user's data, whatever the window sent", async () => {
+  const { runtime, result, sessionConfig } = await startFakeSession({
+    llm: { mode: "remote", baseURL: "https://openrouter.ai/api/v1", model: "m", apiKey: "k" },
+    tools: toolSchemas,
+    config: { vaultRoot: "V" },
+  });
+  assert.equal(result.success, true);
+  assert.deepEqual(
+    sessionConfig.tools.map((tool) => tool.name),
+    ["open_app", "copy_to_clipboard"]
+  );
+  assert.equal(runtime.textLeavesMachine(), true);
+  await runtime.end();
+  assert.equal(runtime.textLeavesMachine(), false);
+});
+
+test("a local model keeps the vault, PowerShell, workers and the MCP tools the window registered", async () => {
+  const { runtime, sessionConfig } = await startFakeSession({
+    llm: { mode: "local" },
+    tools: toolSchemas,
+    config: { vaultRoot: "V" },
+  });
+  assert.deepEqual(
+    sessionConfig.tools.map((tool) => tool.name),
+    [
+      "open_app",
+      "run_powershell",
+      "delegate_task",
+      "vault_read",
+      "mcp_itsaplan__list_projects",
+      "copy_to_clipboard",
+    ]
+  );
+  assert.equal(runtime.textLeavesMachine(), false);
+  await runtime.end();
+});
+
+test("MCP tool names are read from the schemas the window sent", () => {
+  assert.deepEqual(mcpToolNames(toolSchemas), ["mcp_itsaplan__list_projects"]);
+  assert.deepEqual(mcpToolNames(null), []);
+});

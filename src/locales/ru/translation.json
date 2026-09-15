@@ -4184,7 +4184,8 @@
       "unavailable": "Conversation tools are not available in this window.",
       "forbidden": "This action is not allowed from this window.",
       "cancelled": "Cancelled.",
-      "windowsOnly": "This action is only available on Windows."
+      "windowsOnly": "This action is only available on Windows.",
+      "onlineSession": "Refused: while a session's text goes online, the assistant has no access to your notes, MCP servers, background tasks or PowerShell."
     },
     "confirm": {
       "cancel": "Cancel",
@@ -4256,7 +4257,8 @@
         "micSilent": "No sound from {{device}} since this session started. OpenWhispr may be listening to another microphone than the one you speak into.",
         "micNotFound": "The microphone {{device}} was not found; listening to {{heard}} instead. Pick it again in Settings, or set inputDevice in the conversation configuration."
       },
-      "remoteModel": "The assistant's model runs at {{provider}}: the text of what you say is sent there. Your voice and its transcription stay on this computer."
+      "remoteModel": "The assistant's model runs at {{provider}}: the text of what you say is sent there. Your voice and its transcription stay on this computer.",
+      "onlineToolsLimited": "For the same reason, this session has no access to your notes, MCP servers, background tasks or PowerShell: it can open an app, switch windows or displays, and copy text."
     },
     "companion": {
       "stop": "End the conversation",

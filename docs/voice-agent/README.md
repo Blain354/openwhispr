@@ -253,3 +253,17 @@ masked. Prefixes that name a provider beyond doubt (`sk-or-`, `sk-ant-`, `gsk_`,
 checked against the selected provider; Custom and Self-hosted keys are not second-guessed, since
 those endpoints may proxy any provider. The session window's settings show the model in use and
 where it runs — or why none can be used — and the main process logs it, never the key.
+
+### Tools in a session whose text goes online
+
+A session with an online model keeps only the tools that read nothing of the user's data:
+`open_app`, `focus_window`, `set_displays` and `copy_to_clipboard` (`ONLINE_VOICE_TOOLS` in
+`shared/voiceTools.mjs`). The vault, the app's notes, MCP servers, background workers and
+PowerShell would otherwise send the user's data to that provider in a tool result. The plan said
+so from the start ("never exposed to a cloud model"), but the first version that reached an online
+model (`839b37e4`) kept every tool: the list is now decided by the main process, not the window,
+and while such a session runs the `vault.*`, `mcp.call`, `workers.delegate` and
+`os.runPowershell` ops refuse whichever window asks.
+
+The same change fixed MCP tools in local sessions: the main process filtered the window's schemas
+through the default allowlist, which names no MCP tool, so none reached the model.

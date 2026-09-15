@@ -4138,7 +4138,8 @@
       "unavailable": "Les outils de conversation ne sont pas disponibles dans cette fenêtre.",
       "forbidden": "Cette action n'est pas permise depuis cette fenêtre.",
       "cancelled": "Annulé.",
-      "windowsOnly": "Cette action n'existe que sous Windows."
+      "windowsOnly": "Cette action n'existe que sous Windows.",
+      "onlineSession": "Refusé : pendant une session dont le texte part en ligne, l'assistant n'a accès ni à tes notes, ni aux serveurs MCP, ni aux tâches en arrière-plan, ni à PowerShell."
     },
     "confirm": {
       "cancel": "Annuler",
@@ -4210,7 +4211,8 @@
         "micSilent": "Aucun son depuis {{device}} depuis le début de la session. L'agent écoute peut-être un autre micro que celui dans lequel tu parles.",
         "micNotFound": "Le micro {{device}} est introuvable ; c'est {{heard}} qui est écouté. Choisis-le à nouveau dans les réglages, ou fixe inputDevice dans la configuration de la conversation."
       },
-      "remoteModel": "Le modèle de l'assistant tourne chez {{provider}} : le texte de ce que tu dis y est envoyé. Ta voix et sa transcription restent sur cet ordinateur."
+      "remoteModel": "Le modèle de l'assistant tourne chez {{provider}} : le texte de ce que tu dis y est envoyé. Ta voix et sa transcription restent sur cet ordinateur.",
+      "onlineToolsLimited": "Pour la même raison, cette session n'a accès ni à tes notes, ni aux serveurs MCP, ni aux tâches en arrière-plan, ni à PowerShell : elle peut ouvrir une app, changer de fenêtre ou d'écran, et copier du texte."
     },
     "companion": {
       "stop": "Terminer la conversation",

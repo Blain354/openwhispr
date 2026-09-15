@@ -253,6 +253,13 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
     confirmDelegation: config.confirmDelegation,
   });
 
+  // While a session's text goes online, the ops that hand back the user's data refuse, whichever
+  // window asks (runtime.js already leaves their tools out of such a session).
+  const offlineOnly = (handler) => async (payload, context) =>
+    runtime.textLeavesMachine()
+      ? { success: false, displayText: tr("conversation.common.onlineSession") }
+      : handler(payload, context);
+
   const developmentOnly = (handler) => async (payload, context) =>
     isDevelopment
       ? handler(payload, context)
@@ -274,7 +281,7 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
       "os.openApp": os.openApp,
       "os.focusWindow": os.focusWindow,
       "os.setDisplays": os.setDisplays,
-      "os.runPowershell": os.runPowershell,
+      "os.runPowershell": offlineOnly(os.runPowershell),
       "session.getState": async () => ({ success: true, data: sessionController.getState() }),
       "session.stop": async () => ({
         success: true,
@@ -296,13 +303,13 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
       },
       "session.toolResult": async (payload) => runtime.toolResult(payload),
       "session.interrupt": async () => ({ success: runtime.send("interrupt") }),
-      "workers.delegate": (payload, context) => workers.delegate(payload, context),
+      "workers.delegate": offlineOnly((payload, context) => workers.delegate(payload, context)),
       "workers.list": async () => workers.list(),
       "workers.cancel": async (payload) => workers.cancel(payload.taskId),
-      "vault.search": async (payload) => vault.search(payload),
-      "vault.read": async (payload) => vault.read(payload),
+      "vault.search": offlineOnly(async (payload) => vault.search(payload)),
+      "vault.read": offlineOnly(async (payload) => vault.read(payload)),
       "mcp.list": async () => mcpHost().list(),
-      "mcp.call": async (payload, context) => mcpHost().call(payload, context),
+      "mcp.call": offlineOnly(async (payload, context) => mcpHost().call(payload, context)),
       "mcp.setToken": async (payload) => {
         const result = tokens.set(payload.server, payload.token);
         if (!result.ok) {

@@ -179,6 +179,13 @@ function harnessArgs(env = process.env) {
   return ["--wav-input", env.OW_CONVERSATION_WAV_INPUT];
 }
 
+/** Names of the MCP tools a session window registered, from the schemas it sent. */
+function mcpToolNames(tools) {
+  return (Array.isArray(tools) ? tools : [])
+    .map((tool) => tool?.name)
+    .filter((name) => typeof name === "string" && name.startsWith("mcp_"));
+}
+
 function createConversationRuntime({
   getDictionary = () => [],
   userDataDir,
@@ -196,6 +203,8 @@ function createConversationRuntime({
   let vram = null;
   let running = false;
   let ending = false;
+  // Whether the running session sends its text to an online provider.
+  let sessionOnline = false;
   const waiters = new Map();
 
   const loadProtocol = async () => (protocol ||= await import("../shared/protocol.mjs"));
@@ -253,7 +262,7 @@ function createConversationRuntime({
   async function begin({ llm, tools, inputDevice }) {
     if (running) return { success: false, displayText: "A voice session is already running." };
     const proto = await loadProtocol();
-    const { selectVoiceTools } = await import("../shared/voiceTools.mjs");
+    const { selectVoiceTools, voiceToolAllowlist } = await import("../shared/voiceTools.mjs");
     const config = getConfig();
     const refuse = async (code) => {
       await sessionController.dispatch("session.error");
@@ -271,6 +280,13 @@ function createConversationRuntime({
       "conversation"
     );
     if (endpoint.kind === "error") return refuse(endpoint.error);
+    // The main process decides which tools a session offers, not the window: text that leaves the
+    // machine never comes with a tool that reads the user's data.
+    const online = endpoint.kind === "remote";
+    const allowlist = voiceToolAllowlist(mcpToolNames(tools), {
+      hasVault: !!config.vaultRoot,
+      textLeavesMachine: online,
+    });
 
     sidecar = sidecarManagerFactory({
       userDataDir,
@@ -294,6 +310,7 @@ function createConversationRuntime({
 
     running = true;
     ending = false;
+    sessionOnline = online;
     try {
       vram = getVram();
       let llmConfig;
@@ -327,7 +344,7 @@ function createConversationRuntime({
       ws.send(
         proto.encodeMessage("session.config", {
           llm: llmConfig,
-          tools: selectVoiceTools(tools),
+          tools: selectVoiceTools(tools, allowlist),
           systemPrompt: systemPromptFor(),
           sttLanguage: config.sttLanguage,
           hotwords: hotwordsFor(
@@ -404,6 +421,7 @@ function createConversationRuntime({
     sidecar = null;
     running = false;
     ending = false;
+    sessionOnline = false;
   }
 
   // App quit cannot await: kill the sidecar tree synchronously so no python.exe outlives the app.
@@ -414,7 +432,15 @@ function createConversationRuntime({
     vram?.unlockModel();
   }
 
-  return { begin, end, toolResult, send, shutdownSync, isRunning: () => running };
+  return {
+    begin,
+    end,
+    toolResult,
+    send,
+    shutdownSync,
+    isRunning: () => running,
+    textLeavesMachine: () => running && sessionOnline,
+  };
 }
 
 module.exports = {
@@ -423,6 +449,7 @@ module.exports = {
   resolveLlmEndpoint,
   harnessArgs,
   hotwordsFor,
+  mcpToolNames,
   SYSTEM_PROMPT,
   systemPromptFor,
   WHISPER_MODEL,

@@ -30,13 +30,31 @@ export const NOTE_VOICE_TOOLS = Object.freeze([
 export const VOICE_TOOL_ALLOWLIST = Object.freeze([...CORE_VOICE_TOOLS, ...NOTE_VOICE_TOOLS]);
 
 /**
+ * The tools a session keeps when its text leaves the machine: none of them reads the user's data.
+ * The vault, the app's notes, MCP servers, background workers and PowerShell output would
+ * otherwise reach the online provider in a tool result.
+ */
+export const ONLINE_VOICE_TOOLS = Object.freeze([
+  "open_app",
+  "focus_window",
+  "set_displays",
+  "copy_to_clipboard",
+]);
+
+/**
  * The allowlist of one session: MCP tools sit between the core tools and the note tools.
  *
  * With a vault configured, OpenWhispr's own note tools are left out: asked to "search my notes",
  * the model called search_notes (the app's notes) instead of the vault the user actually writes in,
  * and two tools for the same words is a choice a 4B model gets wrong.
+ *
+ * A session whose text leaves the machine gets ONLINE_VOICE_TOOLS only, whatever else exists.
  */
-export function voiceToolAllowlist(mcpNames = [], { hasVault = false } = {}) {
+export function voiceToolAllowlist(
+  mcpNames = [],
+  { hasVault = false, textLeavesMachine = false } = {}
+) {
+  if (textLeavesMachine) return [...ONLINE_VOICE_TOOLS];
   const mcp = (Array.isArray(mcpNames) ? mcpNames : []).filter(
     (name) => typeof name === "string" && name.startsWith("mcp_")
   );

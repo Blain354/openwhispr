@@ -247,7 +247,10 @@ export default function SessionRoot() {
         invokeConversation<PublicConfig>("config.get"),
       ]);
       const mcpNames = mcp.success ? registerMcpTools(registry, mcp.data?.tools) : [];
-      allowlistRef.current = voiceToolAllowlist(mcpNames, { hasVault: !!current.data?.hasVault });
+      allowlistRef.current = voiceToolAllowlist(mcpNames, {
+        hasVault: !!current.data?.hasVault,
+        textLeavesMachine: llm.mode === "remote",
+      });
       // During a session: the model this session actually uses.
       setModelInUse(describeSessionModel(llm, current.data?.conversationModel ?? "") as ModelInUse);
       const result = await invokeConversation("session.begin", {
@@ -261,9 +264,9 @@ export default function SessionRoot() {
         // What the user says leaves the machine as text: say so, once, at the start.
         if (llm.mode === "remote") {
           setNotice(
-            t("conversation.session.remoteModel", {
+            `${t("conversation.session.remoteModel", {
               provider: (llm as { label?: string }).label || "?",
-            })
+            })} ${t("conversation.session.onlineToolsLimited")}`
           );
         }
         return;

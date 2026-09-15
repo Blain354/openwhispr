@@ -85,3 +85,24 @@ test("with a vault configured, the app's own note tools are left out", async () 
   assert.ok(withVault.includes("copy_to_clipboard"));
   assert.ok(voiceToolAllowlist([]).includes("search_notes"));
 });
+
+test("a session whose text leaves the machine keeps only tools that read none of the user's data", async () => {
+  const { voiceToolAllowlist, ONLINE_VOICE_TOOLS } = await load();
+  const allowlist = voiceToolAllowlist(["mcp_itsaplan__list_projects"], {
+    hasVault: true,
+    textLeavesMachine: true,
+  });
+  assert.deepEqual(allowlist, [...ONLINE_VOICE_TOOLS]);
+  for (const name of [
+    "vault_search",
+    "vault_read",
+    "search_notes",
+    "get_note",
+    "run_powershell",
+    "delegate_task",
+    "list_tasks",
+    "mcp_itsaplan__list_projects",
+  ]) {
+    assert.equal(allowlist.includes(name), false, name);
+  }
+});
