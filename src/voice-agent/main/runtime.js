@@ -149,6 +149,7 @@ const LLM_REQUEST_ERRORS = new Set([
   "missing-base-url",
   "invalid-base-url",
   "insecure-base-url",
+  "key-mismatch",
 ]);
 
 /**
@@ -259,6 +260,16 @@ function createConversationRuntime({
       return { success: false, errors: [code] };
     };
     const endpoint = resolveLlmEndpoint(llm);
+    // Which model a session really calls, never its key.
+    debugLogger?.info(
+      "Voice session model",
+      endpoint.kind === "remote"
+        ? { kind: "remote", host: new URL(endpoint.baseURL).host, model: endpoint.model }
+        : endpoint.kind === "local"
+          ? { kind: "local", model: config.conversationModel }
+          : { kind: "error", error: endpoint.error },
+      "conversation"
+    );
     if (endpoint.kind === "error") return refuse(endpoint.error);
 
     sidecar = sidecarManagerFactory({

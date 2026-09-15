@@ -4234,8 +4234,10 @@
         "hotkey": "Session hotkey",
         "save": "Save",
         "saved": "Hotkey saved.",
-        "model": "Local model",
-        "language": "Speech language"
+        "model": "Model in use",
+        "language": "Speech language",
+        "modelLocal": "{{model}} (local)",
+        "modelRemote": "{{model}} at {{where}}"
       },
       "interrupt": "Interrupt",
       "latency": "Last reply after {{ms}} ms",
@@ -4247,7 +4249,8 @@
         "startFailed": "The voice session could not start: {{reason}}",
         "missingApiKey": "The Voice Assistant model has no API key. Add the provider's key in Settings, then start again.",
         "missingModel": "Pick a model for the Voice Assistant in Settings, then start again.",
-        "missingBaseUrl": "The Voice Assistant endpoint has no URL. Set it in Settings, then start again."
+        "missingBaseUrl": "The Voice Assistant endpoint has no URL. Set it in Settings, then start again.",
+        "keyMismatch": "The API key saved for the Voice Assistant's provider belongs to another provider (for example an OpenRouter key saved as the OpenAI key). It was not sent. In Settings, choose the provider the key belongs to."
       },
       "warnings": {
         "micSilent": "No sound from {{device}} since this session started. OpenWhispr may be listening to another microphone than the one you speak into.",

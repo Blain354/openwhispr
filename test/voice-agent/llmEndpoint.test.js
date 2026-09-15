@@ -163,3 +163,68 @@ test("plain HTTP is only for the user's own network, as everywhere else in the a
   assert.equal(remoteBaseProblem("file:///etc/passwd"), "invalid-base-url");
   assert.equal(remoteBaseProblem("not a url"), "invalid-base-url");
 });
+
+test("a key saved under another provider is refused before it is sent anywhere", async () => {
+  const { sessionLlmRequest, keyOwner } = await load();
+  // What happened on the reference machine: an OpenRouter key saved as the OpenAI key.
+  assert.deepEqual(
+    sessionLlmRequest(resolved({ provider: "openai", model: "m" }), {
+      openaiApiKey: "sk-or-v1-abc",
+    }),
+    { mode: "invalid", error: "key-mismatch" }
+  );
+  assert.equal(
+    sessionLlmRequest(resolved({ provider: "openrouter", model: "m" }), {
+      openrouterApiKey: "sk-or-v1-abc",
+    }).mode,
+    "remote"
+  );
+  assert.equal(
+    sessionLlmRequest(resolved({ provider: "openai", model: "m" }), { openaiApiKey: "sk-proj-abc" })
+      .mode,
+    "remote"
+  );
+  // A custom endpoint may be a proxy for any provider: its key is not second-guessed.
+  assert.equal(
+    sessionLlmRequest(
+      resolved({
+        provider: "custom",
+        model: "m",
+        cloudBaseUrl: "https://openrouter.ai/api/v1",
+        customApiKey: "sk-or-v1-abc",
+      }),
+      {}
+    ).mode,
+    "remote"
+  );
+  assert.equal(keyOwner("sk-ant-api03-x"), "anthropic");
+  assert.equal(keyOwner("gsk_x"), "groq");
+  assert.equal(keyOwner("AIzaSyX"), "gemini");
+  assert.equal(keyOwner("sk-proj-x"), null);
+  assert.equal(keyOwner(undefined), null);
+});
+
+test("the settings name the model a session uses and where it runs, or why none", async () => {
+  const { describeSessionModel } = await load();
+  assert.deepEqual(describeSessionModel({ mode: "local" }, "qwen3.5-4b-q4_k_m"), {
+    model: "qwen3.5-4b-q4_k_m",
+    where: "local",
+  });
+  assert.deepEqual(
+    describeSessionModel(
+      {
+        mode: "remote",
+        label: "OpenRouter",
+        baseURL: "https://openrouter.ai/api/v1",
+        model: "anthropic/claude-sonnet-4.5",
+      },
+      "unused"
+    ),
+    { model: "anthropic/claude-sonnet-4.5", where: "OpenRouter" }
+  );
+  assert.deepEqual(describeSessionModel({ mode: "invalid", error: "key-mismatch" }, "unused"), {
+    model: "",
+    where: "",
+    error: "key-mismatch",
+  });
+});

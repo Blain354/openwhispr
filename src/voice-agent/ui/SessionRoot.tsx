@@ -22,7 +22,7 @@ import {
   voiceToolAllowlist,
   voiceToolSchemas,
 } from "./toolExecutor";
-import { sessionLlmRequest } from "../shared/llmEndpoint.mjs";
+import { describeSessionModel, sessionLlmRequest } from "../shared/llmEndpoint.mjs";
 import { microphoneLabel } from "../shared/microphone.mjs";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
@@ -73,7 +73,31 @@ const BEGIN_ERROR_KEYS: Record<string, string> = {
   "missing-api-key": "conversation.session.errors.missingApiKey",
   "missing-model": "conversation.session.errors.missingModel",
   "missing-base-url": "conversation.session.errors.missingBaseUrl",
+  "key-mismatch": "conversation.session.errors.keyMismatch",
 };
+
+interface ModelInUse {
+  model: string;
+  where: string;
+  error?: string;
+}
+
+/** The model line of the settings: which model, where it runs, or why none can be used. */
+function modelInUseText(modelInUse: ModelInUse | null, t: TFunction): string {
+  if (!modelInUse) return "…";
+  if (modelInUse.error) {
+    return t(
+      BEGIN_ERROR_KEYS[modelInUse.error] ?? "conversation.session.errors.unsupportedProvider"
+    );
+  }
+  if (modelInUse.where === "local") {
+    return t("conversation.session.settings.modelLocal", { model: modelInUse.model });
+  }
+  return t("conversation.session.settings.modelRemote", {
+    model: modelInUse.model,
+    where: modelInUse.where,
+  });
+}
 
 /** The microphone OpenWhispr itself listens to, by the label the sidecar can match. */
 async function resolveInputDevice(): Promise<string> {
@@ -115,6 +139,7 @@ export default function SessionRoot() {
   const [tasks, setTasks] = useState<TaskCard[]>([]);
   const [mcpServer, setMcpServer] = useState("");
   const [mcpToken, setMcpToken] = useState("");
+  const [modelInUse, setModelInUse] = useState<ModelInUse | null>(null);
   const createdForSession = useRef(false);
   const begunForSession = useRef(false);
   const conversationIdRef = useRef<number | null>(null);
@@ -149,6 +174,20 @@ export default function SessionRoot() {
       }
     });
   }, []);
+
+  // Before any session: the model the next one would use, from the Voice Assistant settings.
+  useEffect(() => {
+    if (!config) return;
+    void initializeSettings()
+      .catch(() => {})
+      .then(() => {
+        const request = sessionLlmRequest(
+          selectResolvedLLMConfig(getSettings(), "dictationAgent"),
+          getSettings() as unknown as Record<string, unknown>
+        );
+        setModelInUse(describeSessionModel(request, config.conversationModel) as ModelInUse);
+      });
+  }, [config]);
 
   useEffect(() => {
     if (!active) {
@@ -209,6 +248,8 @@ export default function SessionRoot() {
       ]);
       const mcpNames = mcp.success ? registerMcpTools(registry, mcp.data?.tools) : [];
       allowlistRef.current = voiceToolAllowlist(mcpNames, { hasVault: !!current.data?.hasVault });
+      // During a session: the model this session actually uses.
+      setModelInUse(describeSessionModel(llm, current.data?.conversationModel ?? "") as ModelInUse);
       const result = await invokeConversation("session.begin", {
         llm,
         tools: voiceToolSchemas(registry, allowlistRef.current),
@@ -548,7 +589,7 @@ export default function SessionRoot() {
         {config && (
           <dl className="mt-3 grid grid-cols-2 gap-1 text-zinc-400">
             <dt>{t("conversation.session.settings.model")}</dt>
-            <dd className="text-zinc-200">{config.conversationModel}</dd>
+            <dd className="text-zinc-200">{modelInUseText(modelInUse, t)}</dd>
             <dt>{t("conversation.session.settings.language")}</dt>
             <dd className="text-zinc-200">{config.sttLanguage}</dd>
           </dl>

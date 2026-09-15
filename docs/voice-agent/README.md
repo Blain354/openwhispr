@@ -246,3 +246,10 @@ refused.
 
 Anthropic and Google are reached through their OpenAI-compatible endpoints rather than their own
 SDKs, as the rest of the app does. Neither has been run with a real key yet.
+
+A key saved under the wrong provider is refused before anything is sent: an OpenRouter key
+(`sk-or-`) saved as the OpenAI key reached `api.openai.com`, which refused it and echoed it back
+masked. Prefixes that name a provider beyond doubt (`sk-or-`, `sk-ant-`, `gsk_`, `AIza`) are
+checked against the selected provider; Custom and Self-hosted keys are not second-guessed, since
+those endpoints may proxy any provider. The session window's settings show the model in use and
+where it runs — or why none can be used — and the main process logs it, never the key.

@@ -150,3 +150,10 @@ test("each session tells the model today's date and time, after the fixed rules"
   assert.match(prompt, /15 septembre 2026/);
   assert.match(prompt, /10 h 52/);
 });
+
+test("a key saved under the wrong provider is a reason the session window can word", () => {
+  assert.equal(
+    resolveLlmEndpoint({ mode: "invalid", error: "key-mismatch" }).error,
+    "key-mismatch"
+  );
+});

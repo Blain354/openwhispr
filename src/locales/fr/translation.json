@@ -4188,8 +4188,10 @@
         "hotkey": "Raccourci de session",
         "save": "Enregistrer",
         "saved": "Raccourci enregistré.",
-        "model": "Modèle local",
-        "language": "Langue parlée"
+        "model": "Modèle utilisé",
+        "language": "Langue parlée",
+        "modelLocal": "{{model}} (local)",
+        "modelRemote": "{{model}} chez {{where}}"
       },
       "interrupt": "Interrompre",
       "latency": "Dernière réponse après {{ms}} ms",
@@ -4201,7 +4203,8 @@
         "startFailed": "La session vocale n'a pas pu démarrer : {{reason}}",
         "missingApiKey": "Le modèle de l'assistant vocal n'a pas de clé API. Ajoute la clé du fournisseur dans les réglages, puis relance.",
         "missingModel": "Choisis un modèle pour l'assistant vocal dans les réglages, puis relance.",
-        "missingBaseUrl": "Le point de terminaison de l'assistant vocal n'a pas d'adresse. Renseigne-la dans les réglages, puis relance."
+        "missingBaseUrl": "Le point de terminaison de l'assistant vocal n'a pas d'adresse. Renseigne-la dans les réglages, puis relance.",
+        "keyMismatch": "La clé API enregistrée pour le fournisseur de l'assistant vocal appartient à un autre fournisseur (par exemple une clé OpenRouter enregistrée comme clé OpenAI). Elle n'a pas été envoyée. Dans les réglages, choisis le fournisseur à qui appartient cette clé."
       },
       "warnings": {
         "micSilent": "Aucun son depuis {{device}} depuis le début de la session. L'agent écoute peut-être un autre micro que celui dans lequel tu parles.",

@@ -53,6 +53,32 @@ function hostOf(url) {
 
 const invalid = (error) => ({ mode: "invalid", error });
 
+// Prefixes that name a key's provider beyond doubt. An OpenRouter key saved as the OpenAI key was
+// sent to api.openai.com and shown back, masked, in OpenAI's refusal: a key saved under the wrong
+// provider is now refused before it leaves the machine.
+const KEY_OWNERS = Object.freeze([
+  ["sk-or-", "openrouter"],
+  ["sk-ant-", "anthropic"],
+  ["gsk_", "groq"],
+  ["AIza", "gemini"],
+]);
+
+/** The provider a key unmistakably belongs to, or null (`sk-…` alone names no one). */
+export function keyOwner(apiKey) {
+  const key = String(apiKey ?? "").trim();
+  const owner = KEY_OWNERS.find(([prefix]) => key.startsWith(prefix));
+  return owner ? owner[1] : null;
+}
+
+/** What the settings panel shows as the model in use: the model and where it runs, or why none. */
+export function describeSessionModel(request, conversationModel) {
+  if (request?.mode === "local") return { model: String(conversationModel ?? ""), where: "local" };
+  if (request?.mode === "remote") {
+    return { model: String(request.model ?? ""), where: request.label || request.baseURL || "" };
+  }
+  return { model: "", where: "", error: request?.error || "unsupported-provider" };
+}
+
 /**
  * @param {{ mode?: string, provider?: string, model?: string, cloudBaseUrl?: string,
  *           remoteUrl?: string, customApiKey?: string }} config
@@ -102,6 +128,8 @@ export function sessionLlmRequest(config = {}, settings = {}) {
     if (!model) return invalid("missing-model");
     const apiKey = String(settings?.[endpoint.keyField] ?? "").trim();
     if (!apiKey) return invalid("missing-api-key");
+    const owner = keyOwner(apiKey);
+    if (owner && owner !== provider) return invalid("key-mismatch");
     return {
       mode: "remote",
       provider,
