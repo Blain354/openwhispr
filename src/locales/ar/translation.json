@@ -4314,7 +4314,10 @@
         "model": "Model in use",
         "language": "Speech language",
         "modelLocal": "{{model}} (local)",
-        "modelRemote": "{{model}} at {{where}}"
+        "modelRemote": "{{model}} at {{where}}",
+        "voice": "Voice in use",
+        "voiceLocal": "{{voice}} (Kokoro, local)",
+        "voiceRemote": "{{voice}} at {{where}}"
       },
       "interrupt": "Interrupt",
       "latency": "Last reply after {{ms}} ms",
@@ -4327,14 +4330,17 @@
         "missingApiKey": "The Voice Assistant model has no API key. Add the provider's key in Settings, then start again.",
         "missingModel": "Pick a model for the Voice Assistant in Settings, then start again.",
         "missingBaseUrl": "The Voice Assistant endpoint has no URL. Set it in Settings, then start again.",
-        "keyMismatch": "The API key saved for the Voice Assistant's provider belongs to another provider (for example an OpenRouter key saved as the OpenAI key). It was not sent. In Settings, choose the provider the key belongs to."
+        "keyMismatch": "The API key saved for the Voice Assistant's provider belongs to another provider (for example an OpenRouter key saved as the OpenAI key). It was not sent. In Settings, choose the provider the key belongs to.",
+        "voiceMissingApiKey": "The chosen voice is online (OpenAI), but no OpenAI key is saved. Add one in Settings → Language models, or choose a voice on this computer.",
+        "voiceKeyMismatch": "The key saved as the OpenAI key belongs to another provider: it was not sent. Fix it in Settings, or choose a voice on this computer."
       },
       "warnings": {
         "micSilent": "No sound from {{device}} since this session started. OpenWhispr may be listening to another microphone than the one you speak into.",
         "micNotFound": "The microphone {{device}} was not found; listening to {{heard}} instead. Pick it again in Settings, or set inputDevice in the conversation configuration."
       },
       "remoteModel": "The assistant's model runs at {{provider}}: the text of what you say is sent there. Your voice and its transcription stay on this computer.",
-      "onlineToolsLimited": "For the same reason, this session has no access to your notes, MCP servers, background tasks or PowerShell: it can open an app, switch windows or displays, and copy text."
+      "onlineToolsLimited": "For the same reason, this session has no access to your notes, MCP servers, background tasks or PowerShell: it can open an app, switch windows or displays, and copy text.",
+      "remoteVoice": "The assistant's voice runs at OpenAI: the text of its replies is sent there."
     },
     "companion": {
       "stop": "End the conversation",
@@ -4442,6 +4448,48 @@
     "settings": {
       "enableTitle": "Conversation mode",
       "enableDescription": "Hold a spoken conversation with a local model: {{hotkey}} opens a session window and a small overlay. Off by default; while it is off, no hotkey is registered and nothing else runs."
+    },
+    "voice": {
+      "title": "Assistant voice",
+      "tabs": {
+        "local": "On this computer",
+        "online": "Online"
+      },
+      "kokoroIntro": "Kokoro, on this computer: one native French voice (Siwis). The other voices read with the accent of their own language.",
+      "languages": {
+        "fr": "French",
+        "enUS": "English (US)",
+        "enGB": "English (UK)",
+        "es": "Spanish",
+        "it": "Italian",
+        "ptBR": "Portuguese (Brazil)",
+        "hi": "Hindi",
+        "ja": "Japanese",
+        "zh": "Chinese"
+      },
+      "gender": {
+        "female": "Female",
+        "male": "Male"
+      },
+      "accentHintFrench": "These voices read French with the accent of their own language: listen before choosing.",
+      "accentHintEnglish": "These voices read English with the accent of their own language: listen before choosing.",
+      "speed": "Speed",
+      "preview": "Listen to {{voice}}",
+      "inUse": "In use",
+      "openaiDetail": "OpenAI, online",
+      "saved": "Voice saved.",
+      "savedNextSession": "Voice saved: the next session will use it.",
+      "onlineNotice": "The text of the replies is sent to OpenAI to be read aloud. Your voice and its transcription stay on this computer. During a session with an online voice, the assistant has no access to your notes, MCP servers, background tasks or PowerShell.",
+      "keyFound": "OpenAI key found in the app's settings.",
+      "keyMissing": "No OpenAI key: add one in Settings → Language models, OpenAI provider.",
+      "keyMismatch": "The key saved as the OpenAI key belongs to another provider: it will not be sent.",
+      "style": "Reading style (optional)",
+      "stylePlaceholder": "E.g. calm and warm, a little slower",
+      "errors": {
+        "previewFailed": "Could not play this voice: {{reason}}",
+        "busy": "A sample is already being prepared.",
+        "saveFailed": "The voice could not be saved."
+      }
     }
   }
 }

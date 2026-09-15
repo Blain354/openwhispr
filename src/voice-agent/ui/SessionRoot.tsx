@@ -24,6 +24,8 @@ import {
 } from "./toolExecutor";
 import { describeSessionModel, sessionLlmRequest } from "../shared/llmEndpoint.mjs";
 import { microphoneLabel } from "../shared/microphone.mjs";
+import { describeVoice, isOnlineVoice, sessionVoiceRequest } from "../shared/voiceChoice.mjs";
+import VoiceSettings, { type VoiceConfig } from "./VoiceSettings";
 import { invokeConversation, useConversationState } from "./useConversationBridge";
 
 interface PublicConfig {
@@ -31,6 +33,7 @@ interface PublicConfig {
   conversationModel: string;
   sttLanguage: string;
   hasVault?: boolean;
+  voice?: VoiceConfig;
 }
 
 interface BridgeMessage {
@@ -74,6 +77,8 @@ const BEGIN_ERROR_KEYS: Record<string, string> = {
   "missing-model": "conversation.session.errors.missingModel",
   "missing-base-url": "conversation.session.errors.missingBaseUrl",
   "key-mismatch": "conversation.session.errors.keyMismatch",
+  "voice-missing-api-key": "conversation.session.errors.voiceMissingApiKey",
+  "voice-key-mismatch": "conversation.session.errors.voiceKeyMismatch",
 };
 
 interface ModelInUse {
@@ -97,6 +102,15 @@ function modelInUseText(modelInUse: ModelInUse | null, t: TFunction): string {
     model: modelInUse.model,
     where: modelInUse.where,
   });
+}
+
+/** The voice line of the settings: the voice's name and where it reads. */
+function voiceInUseText(voice: VoiceConfig | undefined, t: TFunction): string {
+  if (!voice) return "…";
+  const { name, where } = describeVoice(voice);
+  return where === "local"
+    ? t("conversation.session.settings.voiceLocal", { voice: name })
+    : t("conversation.session.settings.voiceRemote", { voice: name, where });
 }
 
 /** The microphone OpenWhispr itself listens to, by the label the sidecar can match. */
@@ -247,9 +261,10 @@ export default function SessionRoot() {
         invokeConversation<PublicConfig>("config.get"),
       ]);
       const mcpNames = mcp.success ? registerMcpTools(registry, mcp.data?.tools) : [];
+      const voice = current.data?.voice;
       allowlistRef.current = voiceToolAllowlist(mcpNames, {
         hasVault: !!current.data?.hasVault,
-        textLeavesMachine: llm.mode === "remote",
+        textLeavesMachine: llm.mode === "remote" || isOnlineVoice(voice),
       });
       // During a session: the model this session actually uses.
       setModelInUse(describeSessionModel(llm, current.data?.conversationModel ?? "") as ModelInUse);
@@ -259,15 +274,21 @@ export default function SessionRoot() {
         // The sidecar opens a device by name; without this it opens the system's, which is not
         // always the one dictation uses.
         inputDevice: await resolveInputDevice(),
+        // The voice is config.json's; the window only adds the key an online voice needs.
+        voice: sessionVoiceRequest(voice, getSettings() as unknown as Record<string, unknown>),
       });
       if (result.success) {
-        // What the user says leaves the machine as text: say so, once, at the start.
-        if (llm.mode === "remote") {
-          setNotice(
-            `${t("conversation.session.remoteModel", {
-              provider: (llm as { label?: string }).label || "?",
-            })} ${t("conversation.session.onlineToolsLimited")}`
-          );
+        // Text that leaves the machine (what the user says, or the replies): say so, once.
+        const online = [
+          llm.mode === "remote"
+            ? t("conversation.session.remoteModel", {
+                provider: (llm as { label?: string }).label || "?",
+              })
+            : "",
+          isOnlineVoice(voice) ? t("conversation.session.remoteVoice") : "",
+        ].filter(Boolean);
+        if (online.length > 0) {
+          setNotice([...online, t("conversation.session.onlineToolsLimited")].join(" "));
         }
         return;
       }
@@ -529,7 +550,7 @@ export default function SessionRoot() {
         />
       </main>
 
-      <details className="border-t border-white/10 px-4 py-3 text-xs">
+      <details className="max-h-[75vh] overflow-y-auto border-t border-white/10 px-4 py-3 text-xs">
         <summary className="cursor-pointer text-zinc-300">
           {t("conversation.session.settings.title")}
         </summary>
@@ -589,10 +610,21 @@ export default function SessionRoot() {
           </button>
         </div>
 
+        {config?.voice && (
+          <VoiceSettings
+            voice={config.voice}
+            sttLanguage={config.sttLanguage}
+            sessionActive={active}
+            onSaved={(data) => setConfig(data as PublicConfig)}
+          />
+        )}
+
         {config && (
           <dl className="mt-3 grid grid-cols-2 gap-1 text-zinc-400">
             <dt>{t("conversation.session.settings.model")}</dt>
             <dd className="text-zinc-200">{modelInUseText(modelInUse, t)}</dd>
+            <dt>{t("conversation.session.settings.voice")}</dt>
+            <dd className="text-zinc-200">{voiceInUseText(config.voice, t)}</dd>
             <dt>{t("conversation.session.settings.language")}</dt>
             <dd className="text-zinc-200">{config.sttLanguage}</dd>
           </dl>

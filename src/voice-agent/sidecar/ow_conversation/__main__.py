@@ -40,7 +40,9 @@ async def run(args: argparse.Namespace) -> int:
     try:
         message = await link.wait_for("session.config", CONFIG_TIMEOUT_S)
         cfg = parse_session_config(
-            message["data"], api_key=os.environ.get("OW_CONVERSATION_LLM_API_KEY")
+            message["data"],
+            api_key=os.environ.get("OW_CONVERSATION_LLM_API_KEY"),
+            tts_api_key=os.environ.get("OW_CONVERSATION_TTS_API_KEY"),
         )
         started = time.perf_counter()
         from . import bot  # imports faster_whisper: after prepare_cuda_path()

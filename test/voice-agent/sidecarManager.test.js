@@ -81,3 +81,18 @@ test("python lives in Scripts on Windows and bin elsewhere", () => {
   assert.equal(pythonExecutable("/v", "win32"), path.join("/v", "Scripts", "python.exe"));
   assert.equal(pythonExecutable("/v", "linux"), path.join("/v", "bin", "python"));
 });
+
+test("an online voice's key reaches the sidecar in its own variable, never on the command line", () => {
+  const { buildSidecarLaunch: launchFor } = require("../../src/voice-agent/main/sidecarManager");
+  const launch = launchFor({
+    venvDir: "venv",
+    port: 8241,
+    token: "t",
+    ttsApiKey: "sk-voice",
+    sourceEnv: { OPENAI_API_KEY: "inherited" },
+  });
+  assert.equal(launch.env.OW_CONVERSATION_TTS_API_KEY, "sk-voice");
+  assert.equal(launch.env.OW_CONVERSATION_LLM_API_KEY, undefined);
+  assert.equal(launch.env.OPENAI_API_KEY, undefined);
+  assert.equal(launch.args.join(" ").includes("sk-voice"), false);
+});

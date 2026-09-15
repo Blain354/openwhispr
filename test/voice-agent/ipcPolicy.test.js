@@ -157,3 +157,12 @@ test("the control panel may read the configuration and switch the feature on", (
     false
   );
 });
+
+test("only the session window may save a voice or ask for a sample", () => {
+  for (const op of ["config.setVoice", "voice.preview"]) {
+    assert.equal(isOpAllowed({ windowKind: "session", op, toolsInChat: false }), true);
+    for (const windowKind of ["companion", "control-panel", "main"]) {
+      assert.equal(isOpAllowed({ windowKind, op, toolsInChat: true }), false, windowKind);
+    }
+  }
+});

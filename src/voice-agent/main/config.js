@@ -4,6 +4,9 @@
 // that widen what a renderer may do (toolsInChat) come only from this file or the environment.
 const fs = require("fs");
 const path = require("path");
+const VOICE_CATALOG = require("../shared/voiceCatalog.json");
+
+const VOICE_INSTRUCTIONS_MAX_CHARS = 500;
 
 const DEFAULTS = Object.freeze({
   enabled: false,
@@ -29,6 +32,13 @@ const DEFAULTS = Object.freeze({
   vaultExcluded: Object.freeze([]),
   claudePath: "",
   workerBudgetUsd: 2,
+  // The voice that reads the replies: a Kokoro voice on this computer, or an OpenAI voice online
+  // (with an optional reading style). Each provider keeps its own last choice.
+  voice: Object.freeze({
+    provider: "kokoro",
+    kokoro: Object.freeze({ voice: "ff_siwis", speed: 1 }),
+    openai: Object.freeze({ voice: "coral", instructions: "" }),
+  }),
 });
 
 function parseBooleanEnv(value) {
@@ -47,6 +57,27 @@ function readConfigFile(userDataDir) {
   } catch {
     return {};
   }
+}
+
+/** A saved voice, checked against the voices that exist; anything else falls back to the default. */
+function sanitizeVoice(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const kokoro = source.kokoro && typeof source.kokoro === "object" ? source.kokoro : {};
+  const openai = source.openai && typeof source.openai === "object" ? source.openai : {};
+  const out = {
+    provider: source.provider === "openai" ? "openai" : "kokoro",
+    kokoro: { ...DEFAULTS.voice.kokoro },
+    openai: { ...DEFAULTS.voice.openai },
+  };
+  if (VOICE_CATALOG.kokoro.includes(kokoro.voice)) out.kokoro.voice = kokoro.voice;
+  if (typeof kokoro.speed === "number" && Number.isFinite(kokoro.speed)) {
+    out.kokoro.speed = Math.round(Math.min(2, Math.max(0.5, kokoro.speed)) * 100) / 100;
+  }
+  if (VOICE_CATALOG.openai.includes(openai.voice)) out.openai.voice = openai.voice;
+  if (typeof openai.instructions === "string") {
+    out.openai.instructions = openai.instructions.trim().slice(0, VOICE_INSTRUCTIONS_MAX_CHARS);
+  }
+  return out;
 }
 
 function sanitize(raw) {
@@ -90,6 +121,7 @@ function sanitize(raw) {
   ) {
     out.workerBudgetUsd = raw.workerBudgetUsd;
   }
+  out.voice = sanitizeVoice(raw.voice);
   return out;
 }
 
@@ -121,4 +153,4 @@ function saveConfig(userDataDir, patch) {
   return next;
 }
 
-module.exports = { loadConfig, saveConfig, sanitize, DEFAULTS, configPath };
+module.exports = { loadConfig, saveConfig, sanitize, sanitizeVoice, DEFAULTS, configPath };

@@ -26,7 +26,8 @@ def test_a_local_session_config_is_parsed_with_safe_defaults():
     assert cfg.llm_local is True and cfg.llm_api_key == ""
     assert cfg.stt_language is None
     assert cfg.barge_in == "mute"
-    assert cfg.kokoro_voice == "ff_siwis" and cfg.kokoro_language == "fr-fr"
+    assert cfg.tts.provider == "kokoro"
+    assert cfg.tts.voice == "ff_siwis" and cfg.tts.language == "fr-fr" and cfg.tts.speed == 1.0
     assert cfg.tools == ()
     assert cfg.hotwords == ""
 

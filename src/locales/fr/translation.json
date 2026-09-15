@@ -4192,7 +4192,10 @@
         "model": "Modèle utilisé",
         "language": "Langue parlée",
         "modelLocal": "{{model}} (local)",
-        "modelRemote": "{{model}} chez {{where}}"
+        "modelRemote": "{{model}} chez {{where}}",
+        "voice": "Voix utilisée",
+        "voiceLocal": "{{voice}} (Kokoro, local)",
+        "voiceRemote": "{{voice}} chez {{where}}"
       },
       "interrupt": "Interrompre",
       "latency": "Dernière réponse après {{ms}} ms",
@@ -4205,14 +4208,17 @@
         "missingApiKey": "Le modèle de l'assistant vocal n'a pas de clé API. Ajoute la clé du fournisseur dans les réglages, puis relance.",
         "missingModel": "Choisis un modèle pour l'assistant vocal dans les réglages, puis relance.",
         "missingBaseUrl": "Le point de terminaison de l'assistant vocal n'a pas d'adresse. Renseigne-la dans les réglages, puis relance.",
-        "keyMismatch": "La clé API enregistrée pour le fournisseur de l'assistant vocal appartient à un autre fournisseur (par exemple une clé OpenRouter enregistrée comme clé OpenAI). Elle n'a pas été envoyée. Dans les réglages, choisis le fournisseur à qui appartient cette clé."
+        "keyMismatch": "La clé API enregistrée pour le fournisseur de l'assistant vocal appartient à un autre fournisseur (par exemple une clé OpenRouter enregistrée comme clé OpenAI). Elle n'a pas été envoyée. Dans les réglages, choisis le fournisseur à qui appartient cette clé.",
+        "voiceMissingApiKey": "La voix choisie est en ligne (OpenAI), mais aucune clé OpenAI n'est enregistrée. Ajoute-la dans Réglages → Modèles de langage, ou choisis une voix sur cet ordinateur.",
+        "voiceKeyMismatch": "La clé enregistrée comme clé OpenAI appartient à un autre fournisseur : elle n'a pas été envoyée. Corrige-la dans les réglages, ou choisis une voix sur cet ordinateur."
       },
       "warnings": {
         "micSilent": "Aucun son depuis {{device}} depuis le début de la session. L'agent écoute peut-être un autre micro que celui dans lequel tu parles.",
         "micNotFound": "Le micro {{device}} est introuvable ; c'est {{heard}} qui est écouté. Choisis-le à nouveau dans les réglages, ou fixe inputDevice dans la configuration de la conversation."
       },
       "remoteModel": "Le modèle de l'assistant tourne chez {{provider}} : le texte de ce que tu dis y est envoyé. Ta voix et sa transcription restent sur cet ordinateur.",
-      "onlineToolsLimited": "Pour la même raison, cette session n'a accès ni à tes notes, ni aux serveurs MCP, ni aux tâches en arrière-plan, ni à PowerShell : elle peut ouvrir une app, changer de fenêtre ou d'écran, et copier du texte."
+      "onlineToolsLimited": "Pour la même raison, cette session n'a accès ni à tes notes, ni aux serveurs MCP, ni aux tâches en arrière-plan, ni à PowerShell : elle peut ouvrir une app, changer de fenêtre ou d'écran, et copier du texte.",
+      "remoteVoice": "La voix de l'assistant est chez OpenAI : le texte de ses réponses y est envoyé."
     },
     "companion": {
       "stop": "Terminer la conversation",
@@ -4320,6 +4326,48 @@
     "settings": {
       "enableTitle": "Mode conversation",
       "enableDescription": "Tenir une conversation parlée avec un modèle local : {{hotkey}} ouvre une fenêtre de session et une pastille. Désactivé par défaut ; tant qu’il l’est, aucun raccourci n’est enregistré et rien d’autre ne tourne."
+    },
+    "voice": {
+      "title": "Voix de l'assistant",
+      "tabs": {
+        "local": "Sur cet ordinateur",
+        "online": "En ligne"
+      },
+      "kokoroIntro": "Kokoro, sur cet ordinateur : une seule voix française native (Siwis). Les autres voix lisent avec l'accent de leur propre langue.",
+      "languages": {
+        "fr": "Français",
+        "enUS": "Anglais (É.-U.)",
+        "enGB": "Anglais (R.-U.)",
+        "es": "Espagnol",
+        "it": "Italien",
+        "ptBR": "Portugais (Brésil)",
+        "hi": "Hindi",
+        "ja": "Japonais",
+        "zh": "Chinois"
+      },
+      "gender": {
+        "female": "Femme",
+        "male": "Homme"
+      },
+      "accentHintFrench": "Ces voix lisent le français avec l'accent de leur propre langue : écoute avant de choisir.",
+      "accentHintEnglish": "Ces voix lisent l'anglais avec l'accent de leur propre langue : écoute avant de choisir.",
+      "speed": "Vitesse",
+      "preview": "Écouter {{voice}}",
+      "inUse": "Utilisée",
+      "openaiDetail": "OpenAI, en ligne",
+      "saved": "Voix enregistrée.",
+      "savedNextSession": "Voix enregistrée : elle servira à la prochaine session.",
+      "onlineNotice": "Le texte des réponses est envoyé à OpenAI pour être lu à voix haute. Ta voix et sa transcription restent sur cet ordinateur. Pendant une session avec une voix en ligne, l'assistant n'a accès ni à tes notes, ni aux serveurs MCP, ni aux tâches en arrière-plan, ni à PowerShell.",
+      "keyFound": "Clé OpenAI trouvée dans les réglages de l'app.",
+      "keyMissing": "Aucune clé OpenAI : ajoute-la dans Réglages → Modèles de langage, fournisseur OpenAI.",
+      "keyMismatch": "La clé enregistrée comme clé OpenAI appartient à un autre fournisseur : elle ne sera pas envoyée.",
+      "style": "Style de lecture (facultatif)",
+      "stylePlaceholder": "Ex. : accent québécois, ton calme et chaleureux",
+      "errors": {
+        "previewFailed": "Impossible de faire écouter cette voix : {{reason}}",
+        "busy": "Un extrait est déjà en préparation.",
+        "saveFailed": "La voix n'a pas pu être enregistrée."
+      }
     }
   }
 }

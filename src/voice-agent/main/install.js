@@ -8,7 +8,7 @@ const { pathToFileURL } = require("url");
 const { app, dialog, ipcMain, Notification, safeStorage, session } = require("electron");
 const DevServerManager = require("../../helpers/devServerManager");
 const { isAllowedAppNavigation } = require("../../helpers/navigationGuard");
-const { loadConfig, saveConfig } = require("./config");
+const { loadConfig, saveConfig, sanitizeVoice } = require("./config");
 const { tr } = require("./i18n");
 const { createConfirm } = require("./confirm");
 const { createOsActions } = require("./osActions");
@@ -17,7 +17,8 @@ const { createConversationWindows } = require("./windows");
 const { createSessionController } = require("./session");
 const { createConversationHotkey } = require("./hotkey");
 const { createVramCoordinator } = require("./vram");
-const { createConversationRuntime } = require("./runtime");
+const { createConversationRuntime, kokoroLanguageFor, sessionVoiceFor } = require("./runtime");
+const { createVoicePreview } = require("./voicePreview");
 const { createWorkerManager } = require("./workers");
 const { createTokenStore } = require("./secrets");
 const { createMcpHost } = require("./mcpHost");
@@ -42,6 +43,11 @@ const HOTKEY_ERROR_KEYS = {
 const HOTKEY_WARNING_KEYS = {
   "powertoys-run": "conversation.hotkey.warnings.powertoysRun",
   "command-palette": "conversation.hotkey.warnings.commandPalette",
+};
+
+const VOICE_ERROR_KEYS = {
+  "voice-missing-api-key": "conversation.session.errors.voiceMissingApiKey",
+  "voice-key-mismatch": "conversation.session.errors.voiceKeyMismatch",
 };
 
 let installed = null;
@@ -127,6 +133,7 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
     debugLogger,
   });
   app.on("will-quit", () => runtime.shutdownSync());
+  const voicePreview = createVoicePreview();
 
   // A finished background task is announced with a fixed sentence (never the worker's own text):
   // spoken now when a session is running, otherwise when the next session starts.
@@ -251,6 +258,7 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
     sttLanguage: config.sttLanguage,
     bargeIn: config.bargeIn,
     confirmDelegation: config.confirmDelegation,
+    voice: config.voice,
   });
 
   // While a session's text goes online, the ops that hand back the user's data refuse, whichever
@@ -295,6 +303,7 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
           llm: payload.llm,
           tools: payload.tools,
           inputDevice: typeof payload.inputDevice === "string" ? payload.inputDevice : "",
+          voice: payload.voice && typeof payload.voice === "object" ? payload.voice : undefined,
         });
         if (result.success) {
           for (const text of pendingAnnouncements.splice(0)) runtime.send("say", { text });
@@ -367,6 +376,37 @@ function install({ windowManager, whisperManager, debugLogger, databaseManager }
           data: publicConfig(),
           warnings: describeCodes(result.warnings, HOTKEY_WARNING_KEYS),
         };
+      },
+      "config.setVoice": async (payload) => {
+        saveConfig(userDataDir, { voice: sanitizeVoice(payload.voice) });
+        config = loadConfig(userDataDir);
+        return { success: true, data: publicConfig() };
+      },
+      // A sample of a voice the user has not necessarily saved: checked like a saved one.
+      "voice.preview": async (payload) => {
+        const speech = sessionVoiceFor(
+          { ...config, voice: sanitizeVoice(payload.voice) },
+          payload.request
+        );
+        if (speech.kind === "error") {
+          return { success: false, displayText: tr(VOICE_ERROR_KEYS[speech.error]) };
+        }
+        const result = await voicePreview.run({
+          tts: speech.tts,
+          language: speech.tts.language || kokoroLanguageFor(config.sttLanguage),
+          apiKey: speech.apiKey,
+        });
+        if (!result.ok) {
+          debugLogger?.warn("Voice preview failed", { error: result.error }, "conversation");
+          return {
+            success: false,
+            displayText:
+              result.error === "busy"
+                ? tr("conversation.voice.errors.busy")
+                : tr("conversation.voice.errors.previewFailed", { reason: result.error }),
+          };
+        }
+        return { success: true, data: { wav: result.wav.toString("base64") } };
       },
       "session.debugEvent": developmentOnly(async (payload) => ({
         success: true,

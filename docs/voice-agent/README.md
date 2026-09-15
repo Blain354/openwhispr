@@ -267,3 +267,38 @@ and while such a session runs the `vault.*`, `mcp.call`, `workers.delegate` and
 
 The same change fixed MCP tools in local sessions: the main process filtered the window's schemas
 through the default allowlist, which names no MCP tool, so none reached the model.
+
+## The assistant's voice
+
+The session window's settings choose the voice that reads the replies, with a sample of each
+(`ui/VoiceSettings.tsx`). The choice is saved in `config.json` by the main process, which checks it
+against `shared/voiceCatalog.json`, and is read from the next session on.
+
+- **On this computer — Kokoro** (54 voices, `voices-v1.0.bin`). Only one is a native French voice:
+  `ff_siwis`. The others are English, Spanish, Italian, Portuguese, Hindi, Japanese and Chinese
+  voices; they read the session's language (French, or English when speech is set to English) with
+  the accent of their own. Speed 0.8–1.3 in the picker (0.5–2.0 accepted). Measured on the
+  reference machine: 1.2 s to load the model, 0.6–0.8 s to read one sentence, on the CPU.
+- **Online — OpenAI** (`gpt-4o-mini-tts`, the 13 voices pipecat 1.10 accepts), with an optional
+  reading style sent as `instructions`. The key is the one saved for OpenAI in the app's settings;
+  an OpenRouter or other provider's key saved there is refused before anything is sent. The text of
+  the replies leaves the machine, so a session with an online voice gets the same restricted tools
+  as one with an online model (see above), and says so as it starts. Not yet run with a real key:
+  the request was checked against a local stand-in server.
+
+A sample runs `python -m ow_conversation.preview` outside any session: the voice as JSON on stdin,
+a WAV on stdout, the key in `OW_CONVERSATION_TTS_API_KEY`, killed after 45 s. It does not import
+pipecat, so a Kokoro sample is ready in about two seconds (2.1–2.2 s measured). A failed online
+sample reports the HTTP status only: a provider's own message can echo part of the key.
+
+Options not taken, with what they would cost:
+
+- **Piper** (several French voices, 20–75 MB each, downloaded per voice): `piper-tts` is GPL-3.0,
+  a licence question for an upstream pull request.
+- **Kyutai Pocket TTS** (French, voice cloning): needs PyTorch (about 2.5 GB) and its French model is
+  the 24-layer one, too slow on a CPU for real time.
+- **ElevenLabs, Azure** (Azure has Canadian French voices): need a key the app does not store yet.
+- **A self-hosted OpenAI-compatible speech server** (Kokoro-FastAPI, Speaches): pipecat's service
+  rejects voice names outside OpenAI's, so it needs its own service class.
+- **Blending Kokoro voices** (kokoro-onnx accepts a style vector): new French-sounding timbres from
+  `ff_siwis` mixed with another voice, not tried.

@@ -266,3 +266,97 @@ test("MCP tool names are read from the schemas the window sent", () => {
   assert.deepEqual(mcpToolNames(toolSchemas), ["mcp_itsaplan__list_projects"]);
   assert.deepEqual(mcpToolNames(null), []);
 });
+
+const { sessionVoiceFor, kokoroLanguageFor } = require("../../src/voice-agent/main/runtime");
+
+test("the voice comes from config.json; an online one needs the key the window found", () => {
+  const local = sessionVoiceFor(
+    { ...DEFAULTS, voice: { provider: "kokoro", kokoro: { voice: "af_heart", speed: 1.1 } } },
+    { provider: "openai", apiKey: "ignored" }
+  );
+  const { modelPath, voicesPath, ...kokoro } = local.tts;
+  assert.equal(local.kind, "local");
+  assert.equal(local.apiKey, undefined);
+  assert.match(modelPath, /kokoro-v1\.0\.onnx$/);
+  assert.match(voicesPath, /voices-v1\.0\.bin$/);
+  assert.deepEqual(kokoro, {
+    provider: "kokoro",
+    voice: "af_heart",
+    speed: 1.1,
+    language: "fr-fr",
+  });
+
+  const onlineConfig = {
+    ...DEFAULTS,
+    voice: { provider: "openai", openai: { voice: "marin", instructions: "Calme." } },
+  };
+  assert.deepEqual(sessionVoiceFor(onlineConfig, { provider: "openai", apiKey: " sk-proj-x " }), {
+    kind: "remote",
+    apiKey: "sk-proj-x",
+    tts: {
+      provider: "openai",
+      baseURL: "https://api.openai.com/v1",
+      model: "gpt-4o-mini-tts",
+      voice: "marin",
+      instructions: "Calme.",
+    },
+  });
+  assert.deepEqual(sessionVoiceFor(onlineConfig, {}), {
+    kind: "error",
+    error: "voice-missing-api-key",
+  });
+  assert.deepEqual(sessionVoiceFor(onlineConfig, { error: "voice-key-mismatch" }), {
+    kind: "error",
+    error: "voice-key-mismatch",
+  });
+  assert.equal(kokoroLanguageFor("en"), "en-us");
+  assert.equal(kokoroLanguageFor("auto"), "fr-fr");
+});
+
+test("an online voice limits the tools like an online model; its key goes by environment only", async () => {
+  const { runtime, result, sessionConfig, launch } = await startFakeSession({
+    llm: { mode: "local" },
+    tools: toolSchemas,
+    config: { vaultRoot: "V", voice: { provider: "openai", openai: { voice: "coral" } } },
+    voice: { provider: "openai", apiKey: "sk-proj-voice" },
+  });
+  assert.equal(result.success, true);
+  assert.equal(sessionConfig.tts.provider, "openai");
+  assert.equal(JSON.stringify(sessionConfig).includes("sk-proj-voice"), false);
+  assert.equal(launch.ttsApiKey, "sk-proj-voice");
+  assert.deepEqual(
+    sessionConfig.tools.map((tool) => tool.name),
+    ["open_app", "copy_to_clipboard"]
+  );
+  assert.equal(runtime.textLeavesMachine(), true);
+  await runtime.end();
+});
+
+test("a session whose online voice has no key does not start", async () => {
+  const { result, launch } = await startFakeSession({
+    llm: { mode: "local" },
+    tools: toolSchemas,
+    config: { voice: { provider: "openai" } },
+    voice: { provider: "openai", error: "voice-missing-api-key" },
+  });
+  assert.deepEqual(result, { success: false, errors: ["voice-missing-api-key"] });
+  assert.equal(launch, undefined);
+});
+
+test("a local session reads with the chosen Kokoro voice, in the session's language", async () => {
+  const { runtime, sessionConfig, launch } = await startFakeSession({
+    llm: { mode: "local" },
+    tools: [],
+    config: {
+      sttLanguage: "en",
+      voice: { provider: "kokoro", kokoro: { voice: "bf_emma", speed: 0.9 } },
+    },
+  });
+  assert.equal(sessionConfig.tts.provider, "kokoro");
+  assert.equal(sessionConfig.tts.voice, "bf_emma");
+  assert.equal(sessionConfig.tts.speed, 0.9);
+  assert.equal(sessionConfig.tts.language, "en-us");
+  assert.equal(sessionConfig.kokoro, undefined);
+  assert.equal(launch.ttsApiKey, "");
+  await runtime.end();
+});

@@ -25,6 +25,9 @@ const OP_RULES = {
   "config.get": { session: true, settings: true },
   "config.setEnabled": { session: true, settings: true },
   "config.setHotkey": { session: true },
+  // The voice picker: save a choice, hear a sample.
+  "config.setVoice": { session: true },
+  "voice.preview": { session: true },
   // Development-only probes; their handlers refuse outside NODE_ENV=development.
   "session.debugEvent": { session: true },
   "session.debugProbe": { session: true },

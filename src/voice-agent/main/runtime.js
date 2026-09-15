@@ -10,6 +10,7 @@ const os = require("os");
 const path = require("path");
 const { createConversationWsServer } = require("./wsServer");
 const { createSidecarManager, READY_TIMEOUT_MS } = require("./sidecarManager");
+const { sanitizeVoice } = require("./config");
 const { redact } = require("./redact");
 const { projectCandidates } = require("../shared/workerArgv");
 
@@ -179,6 +180,50 @@ function harnessArgs(env = process.env) {
   return ["--wav-input", env.OW_CONVERSATION_WAV_INPUT];
 }
 
+// OpenAI's speech endpoint, with the model that follows a reading style (tts-1 ignores one).
+const OPENAI_SPEECH_BASE_URL = "https://api.openai.com/v1";
+const OPENAI_SPEECH_MODEL = "gpt-4o-mini-tts";
+const VOICE_REQUEST_ERRORS = new Set(["voice-missing-api-key", "voice-key-mismatch"]);
+
+/** Kokoro reads in the session's language: English when speech is set to English, else French. */
+function kokoroLanguageFor(sttLanguage) {
+  return sttLanguage === "en" ? "en-us" : "fr-fr";
+}
+
+/**
+ * The voice of a session: the choice saved in config.json (owned by this process) plus the key the
+ * window found for an online voice, or why it found none.
+ */
+function sessionVoiceFor(config, request) {
+  const voice = sanitizeVoice(config?.voice);
+  if (voice.provider === "openai") {
+    if (VOICE_REQUEST_ERRORS.has(request?.error)) return { kind: "error", error: request.error };
+    const apiKey = typeof request?.apiKey === "string" ? request.apiKey.trim() : "";
+    if (!apiKey) return { kind: "error", error: "voice-missing-api-key" };
+    return {
+      kind: "remote",
+      apiKey,
+      tts: {
+        provider: "openai",
+        baseURL: OPENAI_SPEECH_BASE_URL,
+        model: OPENAI_SPEECH_MODEL,
+        voice: voice.openai.voice,
+        instructions: voice.openai.instructions,
+      },
+    };
+  }
+  return {
+    kind: "local",
+    tts: {
+      provider: "kokoro",
+      ...kokoroPaths(),
+      voice: voice.kokoro.voice,
+      speed: voice.kokoro.speed,
+      language: kokoroLanguageFor(config?.sttLanguage),
+    },
+  };
+}
+
 /** Names of the MCP tools a session window registered, from the schemas it sent. */
 function mcpToolNames(tools) {
   return (Array.isArray(tools) ? tools : [])
@@ -259,7 +304,7 @@ function createConversationRuntime({
     }
   }
 
-  async function begin({ llm, tools, inputDevice }) {
+  async function begin({ llm, tools, inputDevice, voice }) {
     if (running) return { success: false, displayText: "A voice session is already running." };
     const proto = await loadProtocol();
     const { selectVoiceTools, voiceToolAllowlist } = await import("../shared/voiceTools.mjs");
@@ -282,7 +327,16 @@ function createConversationRuntime({
     if (endpoint.kind === "error") return refuse(endpoint.error);
     // The main process decides which tools a session offers, not the window: text that leaves the
     // machine never comes with a tool that reads the user's data.
-    const online = endpoint.kind === "remote";
+    const speech = sessionVoiceFor(config, voice);
+    debugLogger?.info(
+      "Voice session voice",
+      speech.kind === "error"
+        ? { kind: "error", error: speech.error }
+        : { kind: speech.kind, provider: speech.tts.provider, voice: speech.tts.voice },
+      "conversation"
+    );
+    if (speech.kind === "error") return refuse(speech.error);
+    const online = endpoint.kind === "remote" || speech.kind === "remote";
     const allowlist = voiceToolAllowlist(mcpToolNames(tools), {
       hasVault: !!config.vaultRoot,
       textLeavesMachine: online,
@@ -338,6 +392,7 @@ function createConversationRuntime({
         port,
         token,
         llmApiKey: endpoint.apiKey || "",
+        ttsApiKey: speech.apiKey || "",
         extraArgs: harnessArgs(),
       });
       await hello;
@@ -360,7 +415,7 @@ function createConversationRuntime({
           inputDevice: config.inputDevice || inputDevice || "",
           vadMinVolume: config.vadMinVolume,
           whisperModel: WHISPER_MODEL,
-          kokoro: { ...kokoroPaths(), voice: "ff_siwis", language: "fr-fr" },
+          tts: speech.tts,
         })
       );
       const readyMessage = await ready;
@@ -450,6 +505,8 @@ module.exports = {
   harnessArgs,
   hotwordsFor,
   mcpToolNames,
+  sessionVoiceFor,
+  kokoroLanguageFor,
   SYSTEM_PROMPT,
   systemPromptFor,
   WHISPER_MODEL,

@@ -62,6 +62,7 @@ the dev instance rewrites `~/.openwhispr/cli-bridge.json`.
 - `inputDevice`: empty follows the microphone OpenWhispr uses; a device name forces one.
 - `vadMinVolume`: loudness floor for speech (0.1–0.9, default 0.4); lower it for a quiet headset.
 - `waitForCompleteTurns`: let the model wait until the user has finished speaking (default on).
+- `voice`: the voice that reads the replies. Choose it in the session window's settings rather than by hand; the default is Kokoro's French voice `ff_siwis`.
 
 `toolsInChat` can also be set here, but the environment variable in step 1 is the intended way
 during development.

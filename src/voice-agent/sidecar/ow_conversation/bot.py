@@ -1,7 +1,7 @@
 """Voice pipeline of the Conversation mode sidecar (pipecat-ai 1.10.0).
 
 microphone -> Whisper -> user aggregator (Silero VAD, mute strategies) -> interrupt gate -> LLM ->
-Kokoro -> speaker -> assistant aggregator
+voice (Kokoro, or OpenAI's speech service) -> speaker -> assistant aggregator
 
 Import this module only after ``cuda_env.prepare_cuda_path()``: pipecat's Whisper service imports
 faster_whisper, and with it ctranslate2, at import time.
@@ -52,6 +52,8 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.kokoro.tts import KokoroTTSService
 from pipecat.services.llm_service import FunctionCallParams
 from pipecat.services.openai.llm import OpenAILLMService
+from pipecat.services.openai.tts import OpenAITTSService
+from pipecat.services.tts_service import TTSService
 from pipecat.services.whisper.stt import WhisperSTTService
 from pipecat.transcriptions.language import Language
 from pipecat.transports.local.audio import LocalAudioTransport, LocalAudioTransportParams
@@ -68,7 +70,7 @@ from .link import Link
 from .audio_devices import DeviceChoice, resolve_input_device
 from .metrics import LevelMeter, latency_payload, rms_level
 from .mute import SessionMuteStrategy
-from .session_config import SessionConfig
+from .session_config import SessionConfig, TtsConfig
 from .text_aggregator import FirstClauseTextAggregator
 from .tools_bridge import CONFIRMABLE_TOOLS, SPOKEN_ACKS, ToolBridge
 from .turn_completion import NEVER_NUDGE_SECS, system_prompt_for
@@ -86,6 +88,9 @@ TOOL_TIMEOUT_SECS = 200.0
 # A microphone that streams zeros: reported once, after this long without a sound above the floor.
 SILENT_MIC_SECS = 12.0
 SILENT_MIC_LEVEL = 0.01
+
+# Kokoro reads through espeak-ng in the session's language.
+KOKORO_LANGUAGES = {"fr-fr": Language.FR, "en-us": Language.EN_US, "en-gb": Language.EN_GB}
 
 # (input processor, output processor, close callback)
 TransportFactory = Callable[[], tuple[FrameProcessor, FrameProcessor, Callable[[], None]]]
@@ -336,25 +341,43 @@ def build_services(cfg: SessionConfig, device: str):
         ),
     )
 
-    for path in (cfg.kokoro_model_path, cfg.kokoro_voices_path):
-        # pipecat would otherwise download the model into a missing explicit path.
-        if not os.path.isfile(path):
-            raise FileNotFoundError(path)
-    tts = KokoroTTSService(
-        model_path=cfg.kokoro_model_path,
-        voices_path=cfg.kokoro_voices_path,
-        settings=KokoroTTSService.Settings(
-            voice=cfg.kokoro_voice,
-            language=Language.FR if cfg.kokoro_language.startswith("fr") else Language.EN,
-            speed=1.0,
-        ),
-    )
+    tts = build_tts(cfg.tts)
+    return stt, llm, tts
+
+
+def build_tts(tts_cfg: TtsConfig) -> TTSService:
+    """The voice that reads the replies. Blocking: Kokoro loads its model in the constructor."""
+    if tts_cfg.provider == "openai":
+        tts: TTSService = OpenAITTSService(
+            api_key=tts_cfg.api_key,
+            base_url=tts_cfg.base_url,
+            settings=OpenAITTSService.Settings(
+                model=tts_cfg.model,
+                voice=tts_cfg.voice,
+                instructions=tts_cfg.instructions or None,
+            ),
+        )
+    else:
+        for path in (tts_cfg.model_path, tts_cfg.voices_path):
+            # pipecat would otherwise download the model into a missing explicit path.
+            if not os.path.isfile(path):
+                raise FileNotFoundError(path)
+        kokoro = KokoroTTSService(
+            model_path=tts_cfg.model_path,
+            voices_path=tts_cfg.voices_path,
+            settings=KokoroTTSService.Settings(
+                voice=tts_cfg.voice,
+                language=KOKORO_LANGUAGES.get(tts_cfg.language, Language.FR),
+                speed=tts_cfg.speed,
+            ),
+        )
+        # Private attribute (kokoro/tts.py:212): a first synthesis loads espeak and the ONNX graph.
+        kokoro._kokoro.create("Bonjour.", voice=tts_cfg.voice, lang=tts_cfg.language)
+        tts = kokoro
     # TTSService builds its aggregator internally (tts_service.py:330) with no parameter to replace
     # it: swap it so a long first sentence does not hold back the first audio.
     tts._text_aggregator = FirstClauseTextAggregator(aggregation_type=tts._text_aggregation_mode)
-    # Private attribute (kokoro/tts.py:212): a first synthesis loads espeak and the ONNX graph.
-    tts._kokoro.create("Bonjour.", voice=cfg.kokoro_voice, lang=cfg.kokoro_language)
-    return stt, llm, tts
+    return tts
 
 
 def composed_system_prompt(cfg: SessionConfig) -> str:
@@ -468,7 +491,7 @@ class VoiceBot:
         link: Link,
         stt: ThreadedWhisperSTTService,
         llm: OpenAILLMService,
-        tts: KokoroTTSService,
+        tts: TTSService,
         *,
         transport_factory: TransportFactory | None = None,
         ready_data: dict[str, Any] | None = None,

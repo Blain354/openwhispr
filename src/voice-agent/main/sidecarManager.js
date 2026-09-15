@@ -33,6 +33,7 @@ function buildSidecarLaunch({
   port,
   token,
   llmApiKey,
+  ttsApiKey,
   device = "cuda",
   extraArgs = [],
   sourceEnv = process.env,
@@ -55,6 +56,7 @@ function buildSidecarLaunch({
     HF_HUB_OFFLINE: "1",
   };
   if (llmApiKey) extra.OW_CONVERSATION_LLM_API_KEY = llmApiKey;
+  if (ttsApiKey) extra.OW_CONVERSATION_TTS_API_KEY = ttsApiKey;
   return {
     command: pythonExecutable(venvDir, platform),
     args,
@@ -127,10 +129,18 @@ function createSidecarManager({ userDataDir, venvDir = defaultVenvDir(), debugLo
     return fs.existsSync(pythonExecutable(venvDir));
   }
 
-  async function start({ port, token, llmApiKey, device, extraArgs }) {
+  async function start({ port, token, llmApiKey, ttsApiKey, device, extraArgs }) {
     if (child) return child;
     await reapStale();
-    const launch = buildSidecarLaunch({ venvDir, port, token, llmApiKey, device, extraArgs });
+    const launch = buildSidecarLaunch({
+      venvDir,
+      port,
+      token,
+      llmApiKey,
+      ttsApiKey,
+      device,
+      extraArgs,
+    });
     const proc = spawn(launch.command, launch.args, {
       env: launch.env,
       windowsHide: true,
@@ -221,5 +231,6 @@ module.exports = {
   isOurSidecarProcess,
   pythonExecutable,
   defaultVenvDir,
+  killTree,
   READY_TIMEOUT_MS,
 };
