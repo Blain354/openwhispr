@@ -36,6 +36,7 @@ import { followsSystemDefaultMic } from "./micSelectionRecovery";
 import { isCacheableMicrophoneResolution, resolvePreferredMicrophone } from "./microphoneSelection";
 import { isStaleDeviceError } from "./staleMicDevice";
 import { shouldSaveDiscardedRecording } from "./discardedRecording";
+import { resolveLocalCleanupPrewarmModel } from "./localCleanupPrewarm";
 import {
   ANALYTICS_COUNTER_VERSION,
   countSpokenWords,
@@ -70,6 +71,7 @@ import {
   getTranscriptionProviders,
   isOnlineParakeetModel,
   isSherpaLocalProvider,
+  resolveInferenceProvider,
 } from "../models/ModelRegistry";
 import { TINFOIL_PROXY_REQUIRED_ERROR } from "../services/transcriptionBaseUrl";
 import {
@@ -1579,6 +1581,34 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return stream;
   }
 
+  // Starts loading the local cleanup model while the user speaks, so cleanup
+  // does not wait on the load once the mic closes. Fire-and-forget: a failed
+  // warm-up leaves cleanup to start the server itself, as it always has.
+  _prewarmLocalCleanupModel() {
+    try {
+      if (typeof window === "undefined" || !window.electronAPI?.llamaServerStart) return;
+      const modelId = resolveLocalCleanupPrewarmModel(getSettings(), {
+        resolveConfig: (settings) => selectResolvedLLMConfig(settings, "dictationCleanup"),
+        resolveProvider: resolveInferenceProvider,
+        isCloudCleanup: isCloudCleanupMode,
+      });
+      if (!modelId) return;
+      logger.logReasoning("CLEANUP_MODEL_PREWARM", { model: modelId });
+      window.electronAPI
+        .llamaServerStart(modelId)
+        .then((result) => {
+          if (!result?.success) {
+            logger.warn("Local cleanup model pre-warm failed", { error: result?.error }, "audio");
+          }
+        })
+        .catch((error) => {
+          logger.warn("Local cleanup model pre-warm failed", { error: error?.message }, "audio");
+        });
+    } catch (error) {
+      logger.warn("Local cleanup model pre-warm skipped", { error: error?.message }, "audio");
+    }
+  }
+
   async startRecording(forceDefaultMic = false) {
     let prepared = null;
     let preparedAdopted = false;
@@ -1598,6 +1628,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       ) {
         return false;
       }
+      this._prewarmLocalCleanupModel();
 
       const activationGeneration = this._activationCaptureGeneration ?? 0;
       if (
@@ -5263,6 +5294,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._settleStreamingStart();
         return false;
       }
+      this._prewarmLocalCleanupModel();
 
       this.stopRequestedDuringStreamingStart = false;
       const activationGeneration = this._activationCaptureGeneration ?? 0;
