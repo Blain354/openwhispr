@@ -1,6 +1,7 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { resolveLocalCleanupPrewarmModel } from "../../src/helpers/localCleanupPrewarm.js";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+const { resolveLocalCleanupPrewarmModel } = require("../../src/helpers/localCleanupPrewarm.js");
 
 const deps = (cleanup, { cloud = false, provider = "local" } = {}) => ({
   resolveConfig: () => cleanup,
