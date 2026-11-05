@@ -193,6 +193,8 @@ import {
 } from "./dictationStreamingRouting";
 
 const REASONING_CACHE_TTL = 30000; // 30 seconds
+// Under llama-server's 5-minute idle stop, with room for a slow tick.
+const LOCAL_CLEANUP_KEEPALIVE_MS = 60 * 1000;
 // A server-side rollout change (a provider switched on or rolled back) must
 // reach a long-running app without a restart.
 const STT_CONFIG_TTL_MS = 15 * 60 * 1000;
@@ -1586,26 +1588,63 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   // warm-up leaves cleanup to start the server itself, as it always has.
   _prewarmLocalCleanupModel() {
     try {
-      if (typeof window === "undefined" || !window.electronAPI?.llamaServerStart) return;
-      const modelId = resolveLocalCleanupPrewarmModel(getSettings(), {
-        resolveConfig: (settings) => selectResolvedLLMConfig(settings, "dictationCleanup"),
-        resolveProvider: resolveInferenceProvider,
-        isCloudCleanup: isCloudCleanupMode,
-      });
+      const modelId = this._localCleanupPrewarmModel();
       if (!modelId) return;
       logger.logReasoning("CLEANUP_MODEL_PREWARM", { model: modelId });
-      window.electronAPI
-        .llamaServerStart(modelId)
-        .then((result) => {
-          if (!result?.success) {
-            logger.warn("Local cleanup model pre-warm failed", { error: result?.error }, "audio");
-          }
-        })
-        .catch((error) => {
-          logger.warn("Local cleanup model pre-warm failed", { error: error?.message }, "audio");
-        });
+      this._requestLocalCleanupServer(modelId);
+      this._startLocalCleanupKeepalive();
     } catch (error) {
       logger.warn("Local cleanup model pre-warm skipped", { error: error?.message }, "audio");
+    }
+  }
+
+  _localCleanupPrewarmModel() {
+    if (typeof window === "undefined" || !window.electronAPI?.llamaServerStart) return null;
+    return resolveLocalCleanupPrewarmModel(getSettings(), {
+      resolveConfig: (settings) => selectResolvedLLMConfig(settings, "dictationCleanup"),
+      resolveProvider: resolveInferenceProvider,
+      isCloudCleanup: isCloudCleanupMode,
+    });
+  }
+
+  _requestLocalCleanupServer(modelId) {
+    window.electronAPI
+      .llamaServerStart(modelId)
+      .then((result) => {
+        if (!result?.success) {
+          logger.warn("Local cleanup model pre-warm failed", { error: result?.error }, "audio");
+        }
+      })
+      .catch((error) => {
+        logger.warn("Local cleanup model pre-warm failed", { error: error?.message }, "audio");
+      });
+  }
+
+  // llama-server frees itself after 5 idle minutes, and a dictation is not
+  // activity it can see: a recording longer than that would close the mic on
+  // a stopped server. Asking for the running server restarts its idle timer
+  // (and reloads it if it already stopped), so ask once a minute while the
+  // recording lasts. The interval ends itself on the first tick after it.
+  _startLocalCleanupKeepalive() {
+    this._stopLocalCleanupKeepalive();
+    this._localCleanupKeepalive = setInterval(() => {
+      if (!this.isRecording && !this.isStreaming) {
+        this._stopLocalCleanupKeepalive();
+        return;
+      }
+      try {
+        const modelId = this._localCleanupPrewarmModel();
+        if (modelId) this._requestLocalCleanupServer(modelId);
+      } catch (error) {
+        logger.warn("Local cleanup keepalive skipped", { error: error?.message }, "audio");
+      }
+    }, LOCAL_CLEANUP_KEEPALIVE_MS);
+  }
+
+  _stopLocalCleanupKeepalive() {
+    if (this._localCleanupKeepalive) {
+      clearInterval(this._localCleanupKeepalive);
+      this._localCleanupKeepalive = null;
     }
   }
 
